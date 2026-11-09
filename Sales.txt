@@ -1,0 +1,2761 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<base target="_top">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Sales | Mim Electric</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=Noto+Sans+Bengali:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<style>
+
+/* =========================================================
+   THEMES
+   ========================================================= */
+
+:root,
+[data-theme="dreamblue"] {
+  --bg-1:#0b1220; --bg-2:#101c34; --bg-3:#1a2a52;
+  --box-1:#142238; --box-2:#0a1526;
+  --accent:#38bdf8; --accent-2:#0284c7;
+  --accent-soft:rgba(56,189,248,0.12);
+  --accent-glow:rgba(56,189,248,0.45);
+  --text:#f8fafc; --muted:#94a3b8; --border:#1e3a5f;
+  --card-shadow:rgba(2,132,199,0.35);
+  --grad-1:#0b1220; --grad-2:#0a1929; --grad-3:#0e2a4d;
+}
+
+[data-theme="emerald"] {
+  --bg-1:#041a12; --bg-2:#082a1f; --bg-3:#0f5132;
+  --box-1:#0d2e20; --box-2:#061c14;
+  --accent:#10b981; --accent-2:#047857;
+  --accent-soft:rgba(16,185,129,0.12);
+  --accent-glow:rgba(16,185,129,0.45);
+  --text:#f0fdf4; --muted:#86efac; --border:#14532d;
+  --card-shadow:rgba(16,185,129,0.35);
+  --grad-1:#041a12; --grad-2:#072217; --grad-3:#0f5132;
+}
+
+[data-theme="royal"] {
+  --bg-1:#170b2e; --bg-2:#241245; --bg-3:#3b1275;
+  --box-1:#241545; --box-2:#170b2e;
+  --accent:#a855f7; --accent-2:#6b21a8;
+  --accent-soft:rgba(168,85,247,0.12);
+  --accent-glow:rgba(168,85,247,0.45);
+  --text:#faf5ff; --muted:#d8b4fe; --border:#4c1d95;
+  --card-shadow:rgba(168,85,247,0.35);
+  --grad-1:#170b2e; --grad-2:#21103f; --grad-3:#3b1275;
+}
+
+[data-theme="sunset"] {
+  --bg-1:#2a0e0a; --bg-2:#3a1310; --bg-3:#7c2d12;
+  --box-1:#3a1310; --box-2:#1c0907;
+  --accent:#fb923c; --accent-2:#c2410c;
+  --accent-soft:rgba(251,146,60,0.12);
+  --accent-glow:rgba(251,146,60,0.45);
+  --text:#fff7ed; --muted:#fdba74; --border:#7c2d12;
+  --card-shadow:rgba(251,146,60,0.35);
+  --grad-1:#2a0e0a; --grad-2:#36110d; --grad-3:#7c2d12;
+}
+
+* { box-sizing:border-box; margin:0; padding:0; }
+
+body {
+  font-family:'Outfit','Poppins','Noto Sans Bengali',sans-serif;
+  background: linear-gradient(135deg, var(--grad-1), var(--grad-2), var(--grad-3));
+  padding:20px; min-height:100vh; color:var(--text);
+  transition: background 0.5s ease, color 0.3s ease;
+}
+
+.box {
+  background: linear-gradient(145deg, var(--box-1), var(--box-2));
+  padding:28px; border-radius:24px;
+  box-shadow:
+    12px 12px 30px rgba(0,0,0,0.5),
+    -5px -5px 15px rgba(255,255,255,0.03),
+    inset 1px 1px 2px rgba(255,255,255,0.08);
+  max-width:1500px; margin:15px auto;
+  border:1px solid rgba(255,255,255,0.05);
+}
+
+.top-bar {
+  display:flex; justify-content:space-between; align-items:center;
+  flex-wrap:wrap; gap:16px; margin-bottom:22px;
+}
+
+.title-wrap { display:flex; align-items:center; gap:14px; }
+
+.title-wrap .icon-badge {
+  width:52px; height:52px; border-radius:14px;
+  background: linear-gradient(145deg, var(--accent), var(--accent-2));
+  display:flex; align-items:center; justify-content:center;
+  color:#fff; font-size:22px;
+  box-shadow: 0 6px 20px var(--card-shadow), inset 0 2px 4px rgba(255,255,255,0.25);
+}
+
+.title-wrap h2 {
+  font-size:26px; font-weight:800; color:var(--accent);
+  letter-spacing:0.5px;
+  text-shadow: 0 2px 12px var(--accent-glow);
+  margin-bottom:2px;
+}
+
+.title-wrap p { font-size:13px; color:var(--muted); font-weight:500; }
+
+.theme-switcher {
+  display:flex; gap:8px; align-items:center;
+  background:rgba(0,0,0,0.25); padding:8px 14px;
+  border-radius:40px; border:1px solid rgba(255,255,255,0.06);
+  box-shadow: inset 2px 2px 6px rgba(0,0,0,0.4);
+}
+
+.theme-switcher .label {
+  font-size:11px; font-weight:700; text-transform:uppercase;
+  letter-spacing:1px; color:var(--muted); margin-right:6px;
+}
+
+.theme-dot {
+  width:24px; height:24px; border-radius:50%; cursor:pointer;
+  border:2px solid transparent; transition:all 0.25s ease;
+}
+.theme-dot:hover { transform:scale(1.18); }
+.theme-dot.active { border-color:#fff; box-shadow: 0 0 14px var(--accent-glow); }
+.theme-dot[data-theme="dreamblue"] { background:linear-gradient(135deg,#38bdf8,#0284c7); }
+.theme-dot[data-theme="emerald"]   { background:linear-gradient(135deg,#10b981,#047857); }
+.theme-dot[data-theme="royal"]     { background:linear-gradient(135deg,#a855f7,#6b21a8); }
+.theme-dot[data-theme="sunset"]    { background:linear-gradient(135deg,#fb923c,#c2410c); }
+
+.sub-nav {
+  margin-bottom:20px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+}
+
+.btn-nav {
+  padding:10px 18px; font-size:13px; font-weight:700; color:#fff;
+  border:none; border-radius:12px; cursor:pointer;
+  transition:all 0.2s ease; font-family:inherit;
+  display:inline-flex; align-items:center; gap:8px;
+  text-transform:uppercase; letter-spacing:0.5px;
+}
+.btn-nav:hover { transform:translateY(-2px); filter:brightness(1.1); }
+
+.btn-nav-back {
+  background: linear-gradient(145deg, #3b82f6, #1d4ed8);
+  box-shadow: 0 4px 12px rgba(59,130,246,0.35);
+}
+.btn-nav-summary {
+  background: linear-gradient(145deg, #0ea5e9, #0284c7);
+  box-shadow: 0 4px 12px rgba(14,165,233,0.35);
+}
+.btn-nav-stock {
+  background: linear-gradient(145deg, #10b981, #047857);
+  box-shadow: 0 4px 12px rgba(16,185,129,0.35);
+}
+.btn-nav-print-inv {
+  background: linear-gradient(145deg, #a855f7, #6b21a8);
+  box-shadow: 0 4px 12px rgba(168,85,247,0.4);
+}
+
+.date-input-3d {
+  padding:10px 14px; font-size:13px; color:var(--text);
+  border:1px solid var(--border); border-radius:12px;
+  background:var(--box-2); font-family:inherit;
+  box-shadow: inset 2px 2px 6px rgba(0,0,0,0.4);
+  outline:none; font-weight:600; color-scheme:dark;
+}
+.date-input-3d:focus {
+  border-color:var(--accent);
+  box-shadow: inset 2px 2px 6px rgba(0,0,0,0.4), 0 0 14px var(--accent-glow);
+}
+
+.search-panel {
+  display:flex; flex-wrap:wrap; gap:12px; margin-bottom:18px;
+  padding:16px 20px;
+  background: linear-gradient(145deg, var(--box-1), var(--box-2));
+  border-radius:16px; align-items:center;
+  border:1px solid rgba(255,255,255,0.04);
+  box-shadow: 6px 6px 18px rgba(0,0,0,0.35), inset 1px 1px 2px rgba(255,255,255,0.05);
+}
+
+.search-label {
+  font-weight:700; color:var(--accent); font-size:13px;
+  display:flex; align-items:center; gap:6px;
+  text-transform:uppercase; letter-spacing:0.5px;
+}
+
+.search-input-wrapper { flex:1; min-width:220px; position:relative; }
+
+.search-input-wrapper input {
+  width:100%; padding:12px 40px 12px 16px;
+  border:1px solid var(--border); border-radius:12px;
+  font-size:14px; box-sizing:border-box;
+  background:var(--box-2); color:var(--text);
+  font-family:inherit; outline:none; transition:all 0.25s;
+  box-shadow: inset 2px 2px 8px rgba(0,0,0,0.45);
+}
+.search-input-wrapper input::placeholder { color:var(--muted); }
+.search-input-wrapper input:focus {
+  border-color:var(--accent);
+  box-shadow: inset 2px 2px 8px rgba(0,0,0,0.45), 0 0 14px var(--accent-glow);
+}
+
+.search-input-wrapper .search-icon {
+  position:absolute; right:14px; top:50%;
+  transform:translateY(-50%); font-size:15px;
+  color:var(--muted); pointer-events:none;
+}
+.search-input-wrapper .clear-btn {
+  position:absolute; right:12px; top:50%;
+  transform:translateY(-50%); font-size:14px;
+  color:#fff; cursor:pointer;
+  background: linear-gradient(145deg,#ef4444,#b91c1c);
+  border-radius:50%; width:22px; height:22px;
+  line-height:22px; text-align:center; display:none;
+  box-shadow: 0 2px 8px rgba(239,68,68,0.5);
+}
+.search-input-wrapper.has-value .clear-btn { display:block; }
+.search-input-wrapper.has-value .search-icon { display:none; }
+
+.search-count {
+  padding:7px 14px;
+  background: linear-gradient(145deg, var(--accent), var(--accent-2));
+  color:#fff; border-radius:20px; font-size:12px; font-weight:800;
+  letter-spacing:0.5px;
+  box-shadow: 0 4px 12px var(--card-shadow);
+}
+
+.search-quick { display:flex; gap:6px; flex-wrap:wrap; }
+
+.search-quick button {
+  padding:6px 12px; font-size:11px; font-weight:700;
+  border:1px solid var(--border); background:var(--box-2);
+  color:var(--muted); border-radius:8px; cursor:pointer;
+  transition: all 0.2s; font-family:inherit;
+  text-transform:uppercase; letter-spacing:0.4px;
+}
+.search-quick button:hover {
+  border-color:var(--accent); color:var(--accent);
+}
+.search-quick button.active {
+  background: linear-gradient(145deg, var(--accent), var(--accent-2));
+  color:#fff; border-color:transparent;
+  box-shadow: 0 4px 12px var(--card-shadow);
+}
+
+.sort-panel {
+  display:flex; flex-wrap:wrap; gap:10px; margin-bottom:20px;
+  padding:14px 18px;
+  background: linear-gradient(145deg, var(--box-1), var(--box-2));
+  border-radius:16px; align-items:center;
+  border:1px solid rgba(255,255,255,0.04);
+  box-shadow: 6px 6px 18px rgba(0,0,0,0.35), inset 1px 1px 2px rgba(255,255,255,0.05);
+}
+
+.sort-label {
+  font-weight:700; color:var(--accent); font-size:12px;
+  text-transform:uppercase; letter-spacing:0.8px;
+}
+
+.sort-btn-group { display:flex; gap:8px; flex-wrap:wrap; }
+
+.btn-sort-sm {
+  padding:6px 12px; font-size:11px; font-weight:700;
+  border:1px solid var(--border); background:var(--box-2);
+  color:var(--text); border-radius:9px; cursor:pointer;
+  transition: all 0.2s; font-family:inherit;
+}
+.btn-sort-sm:hover {
+  border-color:var(--accent); color:var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.table-wrapper {
+  max-height:65vh; overflow:auto; border-radius:16px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+  border:1px solid var(--border);
+  background:var(--box-2);
+}
+
+table.table-3d {
+  width:100%; border-collapse:separate; border-spacing:0 8px;
+  font-size:13px; min-width:1100px;
+  background:var(--box-2); padding:0 10px;
+}
+
+.table-3d thead tr th {
+  position:sticky; top:0;
+  background: linear-gradient(145deg, var(--box-1), var(--box-2)) !important;
+  color:var(--accent) !important;
+  padding:16px 12px !important;
+  text-align:center; font-weight:800; font-size:12px;
+  text-transform:uppercase; letter-spacing:1px;
+  border-bottom:2px solid var(--accent);
+  z-index:10; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+  white-space:nowrap;
+}
+
+.table-3d tbody tr {
+  background: linear-gradient(145deg, var(--box-1), var(--box-2)) !important;
+  box-shadow: 5px 5px 15px rgba(0,0,0,0.3), inset 1px 1px 1px rgba(255,255,255,0.05);
+  transition: all 0.2s ease;
+}
+
+.table-3d tbody tr:hover {
+  transform:scale(1.005);
+  box-shadow: 0 10px 20px var(--card-shadow);
+}
+
+.table-3d td {
+  padding:14px 12px; text-align:center;
+  color:var(--text) !important; font-weight:500;
+  border-top:1px solid rgba(255,255,255,0.02);
+  border-bottom:1px solid rgba(0,0,0,0.5);
+  white-space:nowrap;
+}
+
+.table-3d tbody tr.hidden-row { display:none; }
+
+.table-3d tbody tr.row-paid {
+  border-left:5px solid #10b981;
+  box-shadow: -4px 0 14px rgba(16,185,129,0.35), 5px 5px 15px rgba(0,0,0,0.3);
+}
+.table-3d tbody tr.row-partial {
+  border-left:6px solid var(--accent);
+  background: linear-gradient(145deg, var(--accent-soft), var(--box-2)) !important;
+  box-shadow: -4px 0 18px var(--accent-glow), 5px 5px 15px rgba(0,0,0,0.3);
+}
+.table-3d tbody tr.row-partial td:first-child::before {
+  content:"💰 "; font-size:14px;
+}
+.table-3d tbody tr.row-due {
+  border-left:5px solid #ef4444;
+  box-shadow: -4px 0 14px rgba(239,68,68,0.35), 5px 5px 15px rgba(0,0,0,0.3);
+}
+
+.badge-status {
+  display:inline-block; padding:5px 12px; border-radius:20px;
+  font-size:10px; font-weight:800; text-transform:uppercase;
+  letter-spacing:0.6px;
+}
+.badge-paid    { background:rgba(16,185,129,0.15); color:#34d399; border:1px solid rgba(16,185,129,0.3); }
+.badge-partial { background:var(--accent-soft); color:var(--accent); border:1px solid var(--accent); }
+.badge-due     { background:rgba(239,68,68,0.15); color:#f87171; border:1px solid rgba(239,68,68,0.3); }
+.badge-pending { background:rgba(251,146,60,0.15); color:#fb923c; border:1px solid rgba(251,146,60,0.3); }
+
+.btn-3d {
+  padding:7px 11px; font-size:11px; font-weight:800; color:#fff;
+  border:none; border-radius:9px; cursor:pointer;
+  transition: all 0.2s ease; margin:2px;
+  font-family:inherit; text-transform:uppercase;
+  letter-spacing:0.4px;
+  display:inline-flex; align-items:center; gap:5px;
+}
+.btn-3d:hover { transform:translateY(-2px); filter:brightness(1.1); }
+
+.btn-edit    { background: linear-gradient(145deg, #f59e0b, #b45309); box-shadow: 0 4px 12px rgba(245,158,11,0.35); }
+.btn-payment { background: linear-gradient(145deg, #10b981, #047857); box-shadow: 0 4px 12px rgba(16,185,129,0.35); }
+.btn-confirm { background: linear-gradient(145deg, #3b82f6, #1d4ed8); box-shadow: 0 4px 12px rgba(59,130,246,0.35); }
+.btn-remove  { background: linear-gradient(145deg, #ef4444, #b91c1c); box-shadow: 0 4px 12px rgba(239,68,68,0.35); }
+
+.btn-paid-badge {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:7px 12px; font-size:11px; font-weight:800;
+  text-transform:uppercase; letter-spacing:0.4px;
+  background:rgba(16,185,129,0.15);
+  color:#34d399;
+  border:1px solid rgba(16,185,129,0.35);
+  border-radius:9px; cursor:default;
+  margin:2px;
+}
+
+.modal-overlay {
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,0.75); backdrop-filter:blur(6px);
+  z-index:2000; justify-content:center; align-items:center;
+  padding:20px;
+}
+.modal-overlay.show { display:flex; }
+
+.modal-content {
+  background: linear-gradient(145deg, var(--box-1), var(--box-2));
+  width:95%; max-width:1150px; max-height:92vh;
+  overflow-y:auto; padding:28px; border-radius:20px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+  border:1px solid var(--border); position:relative;
+  color:var(--text);
+}
+
+.modal-content h3 {
+  color:var(--accent); font-size:20px; font-weight:800;
+  letter-spacing:0.4px; text-align:center;
+  text-shadow: 0 2px 12px var(--accent-glow);
+}
+
+.close-modal {
+  position:absolute; top:18px; right:22px;
+  width:34px; height:34px; border-radius:50%;
+  background: linear-gradient(145deg,#ef4444,#b91c1c);
+  color:#fff; border:none; font-size:18px; font-weight:bold;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  box-shadow: 0 4px 12px rgba(239,68,68,0.4);
+}
+.close-modal:hover { transform:scale(1.08); }
+
+.paid-seal {
+  display:none; position:absolute; top:50%; left:50%;
+  transform:translate(-50%,-50%) rotate(-20deg);
+  border:6px dashed #ef4444; color:#ef4444;
+  font-family:'Impact','Arial Black',sans-serif;
+  font-size:85px; font-weight:bold; padding:10px 40px;
+  text-transform:uppercase; opacity:0.35; border-radius:15px;
+  z-index:9999; pointer-events:none; letter-spacing:5px;
+}
+
+.customer-grid-3d {
+  display:grid; grid-template-columns:100px 1fr 100px 1fr;
+  gap:12px; margin-bottom:20px;
+  background: var(--box-2); padding:18px; border-radius:14px;
+  border:1px solid var(--border);
+  box-shadow: inset 2px 2px 8px rgba(0,0,0,0.35);
+}
+.customer-grid-3d label {
+  color:var(--muted); font-size:11px; font-weight:700;
+  text-transform:uppercase; letter-spacing:0.6px;
+  align-self:center;
+}
+.customer-grid-3d input {
+  padding:10px 14px; border:1px solid var(--border); border-radius:10px;
+  width:100%; box-sizing:border-box;
+  background:var(--box-2); color:var(--text);
+  font-family:inherit; font-size:13px; outline:none;
+  box-shadow: inset 2px 2px 6px rgba(0,0,0,0.4);
+}
+.customer-grid-3d input:focus {
+  border-color:var(--accent);
+  box-shadow: inset 2px 2px 6px rgba(0,0,0,0.4), 0 0 12px var(--accent-glow);
+}
+
+.table-form-3d {
+  width:100%; border-collapse:collapse; margin-top:15px;
+  background:var(--box-2); border-radius:12px; overflow:hidden;
+}
+.table-form-3d th, .table-form-3d td {
+  border:1px solid var(--border); padding:10px;
+}
+.table-form-3d th {
+  background: linear-gradient(145deg, var(--accent), var(--accent-2));
+  color:#fff; font-size:11px; font-weight:800;
+  text-transform:uppercase; letter-spacing:0.6px;
+}
+.table-form-3d td input {
+  width:100%; border:1px solid var(--border); padding:8px;
+  border-radius:6px; box-sizing:border-box;
+  background:var(--box-2); color:var(--text);
+  font-family:inherit; font-size:13px; outline:none;
+}
+.table-form-3d td input:focus {
+  border-color:var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.remove-btn {
+  background: linear-gradient(145deg,#ef4444,#b91c1c);
+  border:none; cursor:pointer; font-size:14px;
+  color:#fff; width:30px; height:30px; border-radius:8px;
+  box-shadow: 0 2px 8px rgba(239,68,68,0.4);
+}
+.remove-btn:hover { transform:scale(1.08); }
+
+.summary-3d {
+  text-align:right; margin-top:20px;
+  font-size:18px; font-weight:800; color:var(--accent);
+  text-shadow: 0 2px 12px var(--accent-glow);
+}
+
+.actions-3d-group {
+  margin-top:25px; display:flex; gap:12px; justify-content:flex-end;
+  flex-wrap:wrap;
+}
+
+.btn-3d-action {
+  padding:12px 22px; border:none; border-radius:12px;
+  cursor:pointer; font-weight:800; color:#fff;
+  font-family:inherit; font-size:13px;
+  text-transform:uppercase; letter-spacing:0.6px;
+  display:inline-flex; align-items:center; gap:8px;
+  transition:all 0.2s ease;
+}
+.btn-3d-action:hover { transform:translateY(-2px); filter:brightness(1.1); }
+
+.btn-3d-confirm { background: linear-gradient(145deg,#10b981,#047857); box-shadow: 0 4px 14px rgba(16,185,129,0.4); }
+.btn-3d-print   { background: linear-gradient(145deg,#3b82f6,#1d4ed8); box-shadow: 0 4px 14px rgba(59,130,246,0.4); }
+
+.btn-add-3d {
+  margin-top:12px; padding:10px 18px;
+  background: linear-gradient(145deg, var(--accent), var(--accent-2));
+  color:#fff; border:none; border-radius:10px;
+  cursor:pointer; font-weight:800; font-family:inherit;
+  font-size:12px; text-transform:uppercase; letter-spacing:0.5px;
+  box-shadow: 0 4px 14px var(--card-shadow);
+  display:inline-flex; align-items:center; gap:6px;
+}
+.btn-add-3d:hover { transform:translateY(-2px); filter:brightness(1.1); }
+
+.stock-summary-cards {
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
+  gap:12px; margin-bottom:20px;
+}
+.stock-summary-card {
+  padding:16px; border-radius:14px; color:#fff; text-align:center;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+  border:1px solid rgba(255,255,255,0.06);
+}
+.stock-summary-card .lbl { font-size:11px; opacity:0.95; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; }
+.stock-summary-card .val { font-size:20px; font-weight:800; margin-top:6px; letter-spacing:-0.4px; }
+.stock-summary-card.blue   { background: linear-gradient(145deg, #0ea5e9, #0284c7); }
+.stock-summary-card.green  { background: linear-gradient(145deg, #10b981, #047857); }
+.stock-summary-card.orange { background: linear-gradient(145deg, #f59e0b, #d97706); }
+.stock-summary-card.red    { background: linear-gradient(145deg, #ef4444, #b91c1c); }
+
+.sr-controls {
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+  gap:12px;
+  padding:16px;
+  background:var(--box-2);
+  border-radius:12px;
+  border:1px solid var(--border);
+  margin-bottom:14px;
+}
+.sr-control-group {
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.sr-control-group label {
+  font-size:10px;
+  font-weight:800;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:0.6px;
+}
+.sr-input {
+  padding:10px 12px;
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:var(--box-1);
+  color:var(--text);
+  font-family:inherit;
+  font-size:13px;
+  font-weight:600;
+  outline:none;
+  box-shadow: inset 2px 2px 6px rgba(0,0,0,0.4);
+  transition: all 0.2s;
+  color-scheme: dark;
+}
+.sr-input:focus {
+  border-color:var(--accent);
+  box-shadow: inset 2px 2px 6px rgba(0,0,0,0.4), 0 0 12px var(--accent-glow);
+}
+.sr-input option {
+  background:var(--box-1);
+  color:var(--text);
+}
+
+.stock-value-cell { color: #fb923c !important; font-weight: 700; }
+.stock-qty-cell   { font-weight: 800; }
+.stock-qty-ok     { color: #34d399 !important; }
+.stock-qty-low    { color: #fb923c !important; }
+.stock-qty-out    { color: #f87171 !important; }
+
+#receivePayModal {
+  display:none; position:fixed; inset:0;
+  background:rgba(0,0,0,0.78); backdrop-filter:blur(6px);
+  z-index:2100; justify-content:center; align-items:center; padding:20px;
+}
+#receivePayModal.show { display:flex; }
+
+#receivePayModal .pay-box {
+  background: linear-gradient(145deg, var(--box-1), var(--box-2));
+  width:95%; max-width:620px; border-radius:20px; padding:26px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+  border:1px solid var(--border); position:relative;
+  color:var(--text);
+}
+#receivePayModal .pay-box h3 {
+  color:var(--accent); font-size:18px; font-weight:800;
+  margin:0 0 16px 0; text-shadow: 0 2px 12px var(--accent-glow);
+}
+#receivePayModal .pay-close {
+  position:absolute; top:14px; right:18px;
+  width:32px; height:32px; border-radius:50%;
+  background: linear-gradient(145deg,#ef4444,#b91c1c);
+  color:#fff; border:none; font-size:16px; font-weight:bold;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  box-shadow: 0 4px 12px rgba(239,68,68,0.4);
+}
+
+.pay-info-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:10px;
+  background:var(--box-2); padding:14px; border-radius:12px;
+  margin-bottom:16px; font-size:13px;
+  border:1px solid var(--border);
+}
+.pay-info-grid b { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:0.5px; display:block; margin-bottom:2px; }
+
+.pay-input-row {
+  display:grid; grid-template-columns:130px 1fr;
+  gap:12px; align-items:center; margin-bottom:14px;
+}
+.pay-input-row label {
+  font-weight:700; color:var(--muted); font-size:11px;
+  text-transform:uppercase; letter-spacing:0.6px;
+}
+.pay-input-row input, .pay-input-row select {
+  padding:11px 14px; border:1px solid var(--border);
+  border-radius:10px; font-size:14px; width:100%; box-sizing:border-box;
+  background:var(--box-2); color:var(--text); font-family:inherit;
+  outline:none; box-shadow: inset 2px 2px 6px rgba(0,0,0,0.4);
+}
+.pay-input-row input:focus, .pay-input-row select:focus {
+  border-color:var(--accent);
+  box-shadow: inset 2px 2px 6px rgba(0,0,0,0.4), 0 0 12px var(--accent-glow);
+}
+.pay-input-row select option {
+  background: var(--box-1); color: var(--text);
+}
+
+.pay-actions {
+  display:flex; gap:10px; justify-content:flex-end; margin-top:16px;
+}
+.btn-pay-action {
+  padding:11px 20px; border:none; border-radius:10px;
+  cursor:pointer; font-weight:800; color:#fff;
+  font-family:inherit; font-size:12px;
+  text-transform:uppercase; letter-spacing:0.5px;
+  display:inline-flex; align-items:center; gap:6px;
+  transition: all 0.2s ease;
+}
+.btn-pay-action:hover { transform:translateY(-2px); filter:brightness(1.1); }
+
+.btn-pay-cancel {
+  background: rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.1);
+  color:var(--muted);
+}
+.btn-pay-save {
+  background: linear-gradient(145deg, #10b981, #047857);
+  box-shadow: 0 4px 14px rgba(16,185,129,0.4);
+}
+
+.pay-history {
+  margin-top:18px; max-height:200px; overflow-y:auto;
+  border:1px solid var(--border); border-radius:12px;
+  background:var(--box-2);
+}
+.pay-history table { width:100%; border-collapse:collapse; font-size:12px; }
+.pay-history th {
+  background: linear-gradient(145deg, var(--accent), var(--accent-2));
+  color:#fff; padding:8px 6px; position:sticky; top:0;
+  font-size:10px; text-transform:uppercase; letter-spacing:0.5px;
+}
+.pay-history td {
+  padding:8px 6px; border-bottom:1px solid var(--border);
+  text-align:center; color:var(--text);
+}
+.pay-history tr:last-child td { border-bottom:none; }
+
+.loading {
+  text-align:center; padding:40px; font-size:16px; color:var(--muted);
+  font-weight:600;
+}
+
+.no-results {
+  text-align:center; padding:50px; color:var(--muted);
+  font-size:15px; font-weight:600;
+}
+.no-results .icon { font-size:42px; display:block; margin-bottom:12px; opacity:0.4; }
+
+@media(max-width:1100px) {
+  .search-quick button { font-size:10px; padding:5px 8px; }
+}
+
+@media(max-width:768px) {
+  body { padding:10px; }
+  .box { padding:18px; border-radius:18px; }
+  .title-wrap h2 { font-size:20px; }
+  .theme-switcher { padding:6px 10px; }
+  .theme-switcher .label { display:none; }
+  .customer-grid-3d { grid-template-columns:1fr; }
+  .customer-grid-3d label { padding-top:6px; }
+  .customer-grid-3d input { grid-column:auto !important; }
+  .actions-3d-group { flex-direction:column; }
+  .btn-3d-action { width:100%; justify-content:center; }
+  .sr-controls { grid-template-columns:1fr; }
+}
+
+@media print {
+  body { background:none !important; padding:0 !important; color:#000 !important; }
+  .box, .sub-nav, .search-panel, .sort-panel, .theme-switcher,
+  .top-bar, .loading, .btn-3d, .btn-nav { display:none !important; }
+  .modal-overlay {
+    display:block !important; position:absolute !important;
+    inset:0 !important; background:none !important;
+  }
+  .modal-content {
+    border:none !important; box-shadow:none !important;
+    width:100% !important; padding:0 !important;
+    background:transparent !important;
+  }
+  #receivePayModal, #stockReportModal, #printInvoiceModal { display:none !important; }
+  .paid-seal {
+    display:block !important;
+    -webkit-print-color-adjust:exact !important;
+    print-color-adjust:exact !important;
+  }
+}
+
+</style>
+</head>
+
+<body data-theme="dreamblue">
+
+<datalist id="shop_list"></datalist>
+<datalist id="product_list"></datalist>
+
+<div class="box">
+
+  <div class="top-bar">
+    <div class="title-wrap">
+      <div class="icon-badge"><i class="fas fa-cash-register"></i></div>
+      <div>
+        <h2>বিক্রয় ম্যানেজমেন্ট</h2>
+        <p>Sales Management • Invoice • Payment • Stock</p>
+      </div>
+    </div>
+
+    <div class="theme-switcher">
+      <span class="label"><i class="fas fa-palette"></i> Theme</span>
+      <div class="theme-dot active" data-theme="dreamblue" title="Dream Blue"></div>
+      <div class="theme-dot" data-theme="emerald" title="Emerald"></div>
+      <div class="theme-dot" data-theme="royal" title="Royal Purple"></div>
+      <div class="theme-dot" data-theme="sunset" title="Sunset"></div>
+    </div>
+  </div>
+
+  <div class="sub-nav">
+    <button class="btn-nav btn-nav-back" onclick="goToOrderPage()">
+      <i class="fas fa-arrow-left"></i> New Order / Back
+    </button>
+    <input type="date" id="summaryDateFilter" class="date-input-3d">
+    <button class="btn-nav btn-nav-summary" onclick="generateTodaySalesSummary()">
+      <i class="fas fa-chart-bar"></i> Today's Summary
+    </button>
+    <button class="btn-nav btn-nav-stock" onclick="generateStockReportByDate()">
+      <i class="fas fa-boxes-stacked"></i> Stock Report
+    </button>
+
+    <button class="btn-nav btn-nav-print-inv" onclick="openPrintInvoiceModal()">
+      <i class="fas fa-receipt"></i> Print Invoice (A4 ×2)
+    </button>
+    <button class="btn-nav" style="background:linear-gradient(145deg,#10b981,#047857);box-shadow:0 4px 12px rgba(16,185,129,.35);" onclick="openCustomerStatementModal()">
+      <i class="fas fa-users"></i> Print Customer Statement
+    </button>
+  </div>
+
+  <div class="search-panel">
+    <div class="search-label"><i class="fas fa-magnifying-glass"></i> Search</div>
+    <div class="search-input-wrapper" id="searchWrapper">
+      <input type="text" id="salesSearch"
+             placeholder="Invoice / SO ID / Customer / Shop / Date..."
+             oninput="applySearch()">
+      <span class="search-icon"><i class="fas fa-magnifying-glass"></i></span>
+      <span class="clear-btn" onclick="clearSearch()">✕</span>
+    </div>
+    <div class="search-quick">
+      <button onclick="setQuickFilter('all')"     data-qf="all">All</button>
+      <button onclick="setQuickFilter('Paid')"    data-qf="Paid">✅ Paid</button>
+      <button onclick="setQuickFilter('Partial')" data-qf="Partial">💰 Partial</button>
+      <button onclick="setQuickFilter('Due')"     data-qf="Due">⚠️ Due</button>
+      <button onclick="setQuickFilter('today')"   data-qf="today">📅 Today</button>
+    </div>
+    <div class="search-count" id="searchCount">0</div>
+  </div>
+
+  <div class="sort-panel">
+    <span class="sort-label"><i class="fas fa-sort"></i> Sort By</span>
+    <div class="sort-btn-group">
+      <button class="btn-sort-sm" onclick="sortSalesByField('soDate','asc')">📅 Date ▲</button>
+      <button class="btn-sort-sm" onclick="sortSalesByField('soDate','desc')">📅 Date ▼</button>
+      <button class="btn-sort-sm" onclick="sortSalesByField('soId','asc')">🆔 SO ID ▲</button>
+      <button class="btn-sort-sm" onclick="sortSalesByField('soId','desc')">🆔 SO ID ▼</button>
+      <button class="btn-sort-sm" onclick="sortSalesByField('customerName','asc')">🧑 Customer ▲</button>
+      <button class="btn-sort-sm" onclick="sortSalesByField('customerName','desc')">🧑 Customer ▼</button>
+      <button class="btn-sort-sm" onclick="sortSalesByField('totalAmount','asc')">💰 Amount ▲</button>
+      <button class="btn-sort-sm" onclick="sortSalesByField('totalAmount','desc')">💰 Amount ▼</button>
+    </div>
+  </div>
+
+  <div class="table-wrapper">
+    <div id="loading" class="loading">🔄 ডাটা লোড হচ্ছে...</div>
+
+    <table class="table-3d" id="salesTable" style="display:none;">
+      <thead>
+        <tr>
+          <th>তারিখ</th>
+          <th>SO ID</th>
+          <th>Customer ID</th>
+          <th>গ্রাহকের নাম</th>
+          <th>Invoice No</th>
+          <th>মোট অংক</th>
+          <th>প্রাপ্ত টাকা</th>
+          <th>বাকি</th>
+          <th>স্থিতি</th>
+          <th style="width:340px;">অ্যাকশন</th>
+        </tr>
+      </thead>
+      <tbody id="salesBody"></tbody>
+    </table>
+    <div id="noResults" class="no-results" style="display:none;">
+      <span class="icon"><i class="fas fa-magnifying-glass"></i></span>
+      কোনো ফলাফল পাওয়া যায়নি
+    </div>
+  </div>
+
+</div><!-- EDIT MODAL -->
+<div id="editModal" class="modal-overlay">
+  <div class="modal-content">
+    <button class="close-modal" onclick="closePopup()"><i class="fas fa-times"></i></button>
+    <div id="memoPaidSeal" class="paid-seal">PAID</div>
+
+    <h3 id="modalTitle"><i class="fas fa-pen-to-square"></i> অর্ডার সংশোধন</h3>
+    <hr style="margin:16px 0; border:none; border-top:1px solid var(--border);">
+
+    <div id="stockSummaryCards" class="stock-summary-cards" style="display:none;"></div>
+
+    <div id="customerInfoSection" style="margin-bottom:15px; display:flex; justify-content:space-between; color:var(--muted); font-size:13px;">
+      <div><strong>তারিখ:</strong> <span id="popupDate"></span></div>
+      <div><strong>Invoice:</strong> <span id="popupInvoiceNo" style="font-weight:800; color:var(--accent);">---</span></div>
+    </div>
+
+    <div id="customerGridSection" class="customer-grid-3d">
+      <label>দোকানের নাম</label>
+      <input type="text" id="custShop" list="shop_list" onchange="fillCustomerData()">
+      <label>নাম</label>
+      <input type="text" id="custName">
+      <label>ঠিকানা</label>
+      <input type="text" id="custAddress" style="grid-column:2/5;">
+      <label>মোবাইল</label>
+      <input type="text" id="custPhone" style="grid-column:2/5;">
+    </div>
+
+    <table id="orderTable" class="table-form-3d">
+      <thead>
+        <tr id="orderTableHeader">
+          <th style="width:40px;">#</th>
+          <th>পণ্যের বিবরণ</th>
+          <th style="width:120px;">রঙ</th>
+          <th style="width:100px;">পরিমাণ</th>
+          <th style="width:120px;">দর</th>
+          <th style="width:140px; text-align:right;">টাকা</th>
+          <th style="width:70px;">অ্যাকশন</th>
+        </tr>
+      </thead>
+      <tbody id="orderItemsBody"></tbody>
+    </table>
+
+    <button id="addLineBtn" class="btn-add-3d" onclick="addRow()">
+      <i class="fas fa-plus"></i> Add Line
+    </button>
+
+    <div class="summary-3d">
+      মোট প্রদেয়: <span id="grandTotal">0.00</span> ৳
+    </div>
+
+    <div class="actions-3d-group">
+      <button id="saveOrderBtn" class="btn-3d-action btn-3d-confirm" onclick="submitOrder()">
+        <i class="fas fa-floppy-disk"></i> Save
+      </button>
+      <button id="printMemoBtn" class="btn-3d-action btn-3d-print" onclick="printCrystalReport()">
+        <i class="fas fa-print"></i> Print Memo
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- RECEIVE PAYMENT MODAL -->
+<div id="receivePayModal">
+  <div class="pay-box">
+    <button class="pay-close" onclick="closeReceivePay()"><i class="fas fa-times"></i></button>
+    <h3><i class="fas fa-money-bill-wave"></i> পেমেন্ট গ্রহণ (Receive Payment)</h3>
+
+    <div class="pay-info-grid">
+      <div><b>Invoice</b><span id="rpInvoice">-</span></div>
+      <div><b>Customer</b><span id="rpCustomer">-</span></div>
+      <div><b>Total</b>৳ <span id="rpTotal">0.00</span></div>
+      <div><b>Already Paid</b>৳ <span id="rpPaid">0.00</span></div>
+      <div><b>Due</b><span style="color:#f87171; font-weight:800;">৳ <span id="rpDue">0.00</span></span></div>
+      <div><b>Status</b><span id="rpStatus">-</span></div>
+    </div>
+
+    <div class="pay-input-row">
+      <label>এখন কত টাকা?</label>
+      <input type="number" id="rpAmount" min="0" step="0.01" placeholder="0.00">
+    </div>
+    <div class="pay-input-row">
+      <label>Payment Method</label>
+      <select id="rpMethod">
+        <option value="Cash">Cash</option>
+        <option value="bKash">bKash</option>
+        <option value="Nagad">Nagad</option>
+        <option value="Bank">Bank</option>
+        <option value="Rocket">Rocket</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div class="pay-input-row">
+      <label>Note (Optional)</label>
+      <input type="text" id="rpNote" placeholder="first payment...">
+    </div>
+
+    <div class="pay-actions">
+      <button class="btn-pay-action btn-pay-cancel" onclick="closeReceivePay()">
+        <i class="fas fa-times"></i> Cancel
+      </button>
+      <button class="btn-pay-action btn-pay-save" onclick="saveReceivePayment()">
+        <i class="fas fa-floppy-disk"></i> Save Payment
+      </button>
+    </div>
+
+    <h4 style="margin:20px 0 8px; color:var(--accent); font-size:13px; text-transform:uppercase; letter-spacing:0.6px;">
+      <i class="fas fa-history"></i> Payment History
+    </h4>
+    <div class="pay-history">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Date</th><th>Amount</th><th>Method</th><th>Note</th></tr>
+        </thead>
+        <tbody id="rpHistoryBody">
+          <tr><td colspan="5" style="color:var(--muted);">লোড হচ্ছে...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- STOCK REPORT MODAL -->
+<div id="stockReportModal" class="modal-overlay">
+  <div class="modal-content" style="max-width:1250px;">
+
+    <button class="close-modal" onclick="closeStockReport()"><i class="fas fa-times"></i></button>
+
+    <h3 style="margin-bottom:20px;">
+      <i class="fas fa-boxes-stacked"></i> Stock Report
+      <span style="color:var(--muted); font-size:14px; font-weight:500; margin-left:8px;" id="srDateLabel"></span>
+    </h3>
+
+    <div id="srSummaryCards" class="stock-summary-cards" style="display:none;"></div>
+
+    <div class="sr-controls">
+      <div class="sr-control-group">
+        <label><i class="fas fa-calendar-plus"></i> From Date</label>
+        <input type="date" id="srFromDate" class="sr-input">
+      </div>
+
+      <div class="sr-control-group">
+        <label><i class="fas fa-calendar-check"></i> To Date</label>
+        <input type="date" id="srToDate" class="sr-input">
+      </div>
+
+      <div class="sr-control-group">
+        <label><i class="fas fa-filter"></i> Filter</label>
+        <select id="srFilterType" class="sr-input">
+          <option value="all">সব প্রোডাক্ট</option>
+          <option value="sold">শুধু বিক্রি হয়েছে</option>
+          <option value="instock">স্টক আছে</option>
+          <option value="outofstock">স্টক নেই</option>
+        </select>
+      </div>
+
+      <div class="sr-control-group">
+        <label><i class="fas fa-sort"></i> Sort By</label>
+        <select id="srSortBy" class="sr-input">
+          <option value="hsn">HSN Code</option>
+          <option value="name">Product Name</option>
+          <option value="stock">Stock Qty</option>
+          <option value="value">Stock Value</option>
+          <option value="sold">Sold Qty</option>
+        </select>
+      </div>
+
+      <div class="sr-control-group">
+        <label><i class="fas fa-arrow-down-up-across-line"></i> Direction</label>
+        <select id="srSortDir" class="sr-input">
+          <option value="asc">Ascending (ছোট → বড়)</option>
+          <option value="desc">Descending (বড় → ছোট)</option>
+        </select>
+      </div>
+
+      <div class="sr-control-group" style="justify-content:flex-end;">
+        <label>&nbsp;</label>
+        <button class="btn-nav btn-nav-summary" onclick="reloadStockReport()" style="padding:10px 16px;">
+          <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+      </div>
+    </div>
+
+    <div style="max-height:55vh; overflow:auto; border-radius:12px; border:1px solid var(--border);">
+      <table class="table-form-3d" id="srTable" style="min-width:1000px;">
+        <thead>
+          <tr id="srTableHeader">
+            <th style="width:40px;">#</th>
+            <th style="width:80px;">HSN</th>
+            <th style="text-align:left; min-width:260px;">পণ্যের নাম</th>
+            <th style="width:70px;">Sold</th>
+            <th style="width:90px;">Amount</th>
+            <th style="width:70px;">আগের</th>
+            <th style="width:80px;">বাকি স্টক</th>
+            <th style="width:90px;">স্টক মূল্য</th>
+          </tr>
+        </thead>
+        <tbody id="srTableBody">
+          <tr><td colspan="8" style="text-align:center; padding:30px; color:var(--muted);">লোড হচ্ছে...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="actions-3d-group" style="margin-top:20px;">
+      <button class="btn-3d-action btn-3d-print" onclick="printStockReport('full')">
+        <i class="fas fa-print"></i> Full Print
+      </button>
+      <button class="btn-3d-action btn-3d-print" onclick="printStockReport('compact')" style="background:linear-gradient(145deg,#a855f7,#6b21a8);">
+        <i class="fas fa-compress"></i> Compact Print
+      </button>
+      <button class="btn-3d-action btn-3d-print" onclick="printStockReport('blank')" style="background:linear-gradient(145deg,#f59e0b,#b45309);">
+        <i class="fas fa-file-pen"></i> Blank Qty Print
+      </button>
+      <button class="btn-3d-action" onclick="closeStockReport()" style="background:rgba(255,255,255,0.08); color:var(--muted);">
+        <i class="fas fa-times"></i> Close
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- CUSTOMER STATEMENT PRINT MODAL -->
+<div id="customerStatementModal" class="modal-overlay">
+  <div class="modal-content" style="max-width:620px;">
+    <button class="close-modal" onclick="closeCustomerStatementModal()"><i class="fas fa-times"></i></button>
+    <h3><i class="fas fa-file-invoice-dollar"></i> গ্রাহকের সম্পূর্ণ হিসাব প্রিন্ট</h3>
+    <p style="margin:14px 0;color:var(--muted);text-align:center;font-size:13px;">
+      একজন গ্রাহক নির্বাচন করলে তার সব ইনভয়েস, পণ্যের বিবরণ, জমা ও বাকি একসাথে প্রিন্ট হবে।
+    </p>
+    <label for="statementCustomerSelect" style="display:block;margin:12px 0 6px;color:var(--muted);font-weight:700;">গ্রাহক নির্বাচন করুন</label>
+    <select id="statementCustomerSelect" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--box-2);color:var(--text);font:inherit;">
+      <option value="">-- গ্রাহক নির্বাচন করুন --</option>
+    </select>
+    <div class="actions-3d-group">
+      <button class="btn-3d-action" onclick="closeCustomerStatementModal()" style="background:#475569;">বন্ধ করুন</button>
+      <button class="btn-3d-action btn-3d-print" onclick="printCustomerStatement()"><i class="fas fa-print"></i> Print Full Statement</button>
+    </div>
+  </div>
+</div>
+
+<!-- ⭐ PRINT INVOICE MODAL (A4 × 2 copies) -->
+<div id="printInvoiceModal" class="modal-overlay">
+  <div class="modal-content" style="max-width:950px;">
+
+    <button class="close-modal" onclick="closePrintInvoiceModal()"><i class="fas fa-times"></i></button>
+
+    <h3><i class="fas fa-receipt"></i> Print Invoice — A4 Landscape × 2 Copies</h3>
+    <hr style="margin:16px 0; border:none; border-top:1px solid var(--border);">
+
+    <div style="padding:12px 16px; background:rgba(168,85,247,0.12); border:1px solid rgba(168,85,247,0.35); border-radius:10px; margin-bottom:16px; color:var(--accent); font-size:13px; font-weight:600; line-height:1.5;">
+      <i class="fas fa-info-circle"></i>
+      সব ফিল্ড <b>optional</b> — খালি রেখে দিলে প্রিন্টে <b>ডটেড আন্ডারলাইন</b> দেখাবে, হাতে লিখে পূরণ করবেন।
+    </div>
+
+    <div class="customer-grid-3d" style="grid-template-columns:130px 1fr 100px 1fr;">
+      <label>ইনভয়েস নম্বর</label>
+      <input type="text" id="piInvoice" placeholder="V-XXXXXX (optional)">
+      <label>তারিখ</label>
+      <input type="date" id="piDate" class="date-input-3d" style="padding:10px 14px;">
+
+      <label>গ্রাহকের নাম</label>
+      <input type="text" id="piCustomer" placeholder="(optional)">
+      <label>দোকান</label>
+      <input type="text" id="piShop" list="shop_list" placeholder="(optional)">
+
+      <label>ঠিকানা</label>
+      <input type="text" id="piAddress" style="grid-column:2/5;" placeholder="(optional)">
+
+      <label>মোবাইল</label>
+      <input type="text" id="piMobile" style="grid-column:2/5;" placeholder="(optional)">
+    </div>
+
+    <div style="font-size:11px; color:var(--muted); margin-bottom:6px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px;">
+      <i class="fas fa-info-circle"></i> 20 Rows — সব খালি রাখলেও চলবে (হাতে লেখার জন্য)
+    </div>
+
+    <table class="table-form-3d" id="piTable" style="margin-top:4px;">
+      <thead>
+        <tr>
+          <th style="width:40px;">#</th>
+          <th>পণ্যের নাম</th>
+          <th style="width:110px;">রঙ</th>
+          <th style="width:90px;">পরিমাণ</th>
+          <th style="width:100px;">দর</th>
+          <th style="width:120px; text-align:right;">মোট</th>
+        </tr>
+      </thead>
+      <tbody id="piTableBody"></tbody>
+    </table>
+
+    <div class="summary-3d">
+      মোট: ৳ <span id="piGrandTotal">0.00</span>
+    </div>
+
+    <div class="actions-3d-group">
+      <button class="btn-3d-action" onclick="closePrintInvoiceModal()" style="background:rgba(255,255,255,0.08); color:var(--muted);">
+        <i class="fas fa-times"></i> Cancel
+      </button>
+      <button class="btn-3d-action btn-3d-print" onclick="printBlankInvoice()">
+        <i class="fas fa-print"></i> Print (A4 × 2)
+      </button>
+    </div>
+
+  </div>
+</div><script>
+
+/* =========================================================
+   THEME
+   ========================================================= */
+
+function applyTheme(theme) {
+  document.body.setAttribute('data-theme', theme);
+  localStorage.setItem('mimTheme', theme);
+  document.querySelectorAll('.theme-dot').forEach(function(dot) {
+    dot.classList.toggle('active', dot.dataset.theme === theme);
+  });
+}
+
+document.querySelectorAll('.theme-dot').forEach(function(dot) {
+  dot.addEventListener('click', function() {
+    applyTheme(this.dataset.theme);
+  });
+});
+
+applyTheme(localStorage.getItem('mimTheme') || 'dreamblue');
+
+
+/* STATE */
+var cachedSalesData = [];
+var globalCustomers = [];
+var globalProducts = [];
+var currentStockReportData = null;
+var currentQuickFilter = 'all';
+var currentReceiveInvoice = null;
+
+
+/* INIT */
+window.onload = function () {
+  var today = new Date().toISOString().split('T')[0];
+  document.getElementById('summaryDateFilter').value = today;
+  loadSales();
+  fetchDropdowns();
+};
+
+
+/* SEARCH */
+function applySearch() {
+  var input = document.getElementById('salesSearch');
+  var wrapper = document.getElementById('searchWrapper');
+  if (input.value) wrapper.classList.add('has-value');
+  else wrapper.classList.remove('has-value');
+
+  var q = (input.value || '').trim().toLowerCase();
+  var rows = document.querySelectorAll('#salesBody tr');
+  var visibleCount = 0;
+  var today = new Date().toISOString().split('T')[0];
+
+  rows.forEach(function (tr) {
+    var sale = cachedSalesData[tr.rowIndex - 1];
+    if (!sale) { tr.classList.add('hidden-row'); return; }
+    var match = true;
+
+    if (currentQuickFilter === 'Paid') {
+      var st = String(sale.status || '').toLowerCase();
+      match = (st === 'paid' || st === 'confirmed');
+    } else if (currentQuickFilter === 'Partial') {
+      match = (String(sale.status || '').toLowerCase() === 'partial');
+    } else if (currentQuickFilter === 'Due') {
+      var st2 = String(sale.status || '').toLowerCase();
+      match = (st2 === 'due' || st2 === 'pending');
+    } else if (currentQuickFilter === 'today') {
+      match = (String(sale.soDate || '').split('T')[0] === today);
+    }
+
+    if (match && q) {
+      var haystack = [
+        sale.soDate || '', sale.soId || '', sale.customerId || '',
+        sale.customerName || '', sale.invoiceNum || '', sale.status || '',
+        String(sale.totalAmount || ''), String(sale.totalReceived || ''),
+        String(sale.soBalance || '')
+      ].join(' ').toLowerCase();
+      match = haystack.indexOf(q) !== -1;
+    }
+
+    tr.classList.toggle('hidden-row', !match);
+    if (match) visibleCount++;
+  });
+
+  document.getElementById('searchCount').innerText = visibleCount;
+  document.getElementById('noResults').style.display =
+    (visibleCount === 0 && rows.length > 0) ? 'block' : 'none';
+}
+
+function clearSearch() {
+  document.getElementById('salesSearch').value = '';
+  document.getElementById('searchWrapper').classList.remove('has-value');
+  currentQuickFilter = 'all';
+  document.querySelectorAll('.search-quick button').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-qf') === 'all');
+  });
+  applySearch();
+}
+
+function setQuickFilter(filter) {
+  currentQuickFilter = filter;
+  document.querySelectorAll('.search-quick button').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-qf') === filter);
+  });
+  applySearch();
+}
+
+
+/* DROPDOWNS */
+function fetchDropdowns() {
+  if (typeof google !== 'undefined' && google.script) {
+    google.script.run.withSuccessHandler(function (data) {
+      if (data) {
+        if (data.customers) globalCustomers = data.customers;
+        if (data.products) globalProducts = data.products;
+      }
+      updateDatalists();
+    }).getDropdownData();
+  } else {
+    updateDatalists();
+  }
+}
+
+function updateDatalists() {
+  var shopList = document.getElementById('shop_list');
+  if (shopList) {
+    shopList.innerHTML = '';
+    globalCustomers.forEach(function (c) {
+      if (c.shop) {
+        var opt = document.createElement('option');
+        opt.value = c.shop;
+        shopList.appendChild(opt);
+      }
+    });
+  }
+  var prodList = document.getElementById('product_list');
+  if (prodList) {
+    prodList.innerHTML = '';
+    globalProducts.forEach(function (p) {
+      if (p) {
+        var opt = document.createElement('option');
+        opt.value = p;
+        prodList.appendChild(opt);
+      }
+    });
+  }
+}
+
+function fillCustomerData() {
+  var entered = (document.getElementById('custShop').value || '').trim();
+  var c = globalCustomers.find(function (x) {
+    return x.shop && String(x.shop).trim() === entered;
+  });
+  if (c) {
+    document.getElementById('custName').value = c.name || '';
+    document.getElementById('custAddress').value = c.address || '';
+    document.getElementById('custPhone').value = c.phone || '';
+  }
+}
+
+
+/* LOAD SALES */
+function loadSales() {
+  if (typeof google !== 'undefined' && google.script) {
+    google.script.run.withSuccessHandler(function (sales) {
+      cachedSalesData = (sales || []).slice();
+      renderSales(cachedSalesData);
+    }).getSalesData();
+  } else {
+    cachedSalesData = [{
+      soDate: '2026-06-10', soId: '1001', customerId: 'C-009',
+      customerName: 'আসাদ', invoiceNum: 'V-300538',
+      totalAmount: 973, totalReceived: 973, soBalance: 0, status: 'Confirmed'
+    }];
+    renderSales(cachedSalesData);
+  }
+}
+
+
+/* SORT */
+function sortSalesByField(field, direction) {
+  if (!cachedSalesData || cachedSalesData.length === 0) {
+    alert("কোনো ডাটা নেই!");
+    return;
+  }
+  var sorted = cachedSalesData.slice();
+  sorted.sort(function (a, b) {
+    var va = a[field], vb = b[field];
+
+    if (field === 'totalAmount' || field === 'totalReceived' || field === 'soBalance') {
+      va = parseFloat(va) || 0;
+      vb = parseFloat(vb) || 0;
+      return direction === 'asc' ? va - vb : vb - va;
+    }
+    if (field === 'soDate') {
+      return direction === 'asc'
+        ? String(va).localeCompare(String(vb))
+        : String(vb).localeCompare(String(va));
+    }
+    if (field === 'soId') {
+      var na = parseInt(va) || 0, nb = parseInt(vb) || 0;
+      return direction === 'asc' ? na - nb : nb - na;
+    }
+    var sa = String(va || '').toLowerCase();
+    var sb = String(vb || '').toLowerCase();
+    return direction === 'asc' ? sa.localeCompare(sb) : sb.localeCompare(sa);
+  });
+  cachedSalesData = sorted;
+  renderSales(cachedSalesData);
+}
+
+
+/* RENDER */
+function renderSales(sales) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('salesTable').style.display = 'table';
+
+  var tbody = document.getElementById('salesBody');
+  tbody.innerHTML = '';
+
+  sales.forEach(function (sale) {
+    var tr = document.createElement('tr');
+
+    var st = String(sale.status || 'Pending').trim();
+    var stLower = st.toLowerCase();
+
+    if (stLower === 'confirmed' || stLower === 'paid') {
+      tr.className = 'row-paid';
+    } else if (stLower === 'partial') {
+      tr.className = 'row-partial';
+    } else if (stLower === 'due' || stLower === 'pending') {
+      tr.className = 'row-due';
+    }
+
+    var badgeClass = 'badge-pending';
+    if (stLower === 'confirmed' || stLower === 'paid') badgeClass = 'badge-paid';
+    else if (stLower === 'partial') badgeClass = 'badge-partial';
+    else if (stLower === 'due' || stLower === 'pending') badgeClass = 'badge-due';
+
+    var inv = String(sale.invoiceNum || '').replace(/'/g, "\\'");
+    var isPaidStatus = (stLower === 'paid' || stLower === 'confirmed');
+    var dueValue = parseFloat(sale.soBalance || 0);
+
+    var actionHTML = '<td>';
+    actionHTML += '<button class="btn-3d btn-edit" onclick="openEditPopup(\'' + inv + '\', \'' + (sale.soDate || '') + '\', \'' + (sale.status || 'Pending') + '\')"><i class="fas fa-pen"></i> Edit</button>';
+
+    if (!isPaidStatus && dueValue > 0.01) {
+      actionHTML += '<button class="btn-3d btn-payment" onclick="openReceivePay(\'' + inv + '\')"><i class="fas fa-money-bill-wave"></i> Payment</button>';
+    } else {
+      actionHTML += '<span class="btn-paid-badge"><i class="fas fa-check-circle"></i> Paid</span>';
+    }
+
+    if (!isPaidStatus) {
+      actionHTML += '<button class="btn-3d btn-confirm" onclick="confirmOrder(\'' + inv + '\')"><i class="fas fa-check"></i> Confirm</button>';
+    }
+
+    actionHTML += '<button class="btn-3d btn-remove" onclick="removeOrder(\'' + inv + '\')"><i class="fas fa-trash"></i></button>';
+    actionHTML += '</td>';
+
+    tr.innerHTML =
+      '<td>' + (sale.soDate || '') + '</td>' +
+      '<td style="font-weight:800; color:var(--accent);">' + (sale.soId || '') + '</td>' +
+      '<td>' + (sale.customerId || '') + '</td>' +
+      '<td style="font-weight:600;">' + (sale.customerName || '') + '</td>' +
+      '<td>' + (sale.invoiceNum || '') + '</td>' +
+      '<td style="font-weight:700;">৳ ' + parseFloat(sale.totalAmount || 0).toFixed(2) + '</td>' +
+      '<td style="font-weight:700; color:#34d399;">৳ ' + parseFloat(sale.totalReceived || 0).toFixed(2) + '</td>' +
+      '<td style="font-weight:700; color:' + (dueValue > 0 ? '#f87171' : '#94a3b8') + ';">৳ ' + dueValue.toFixed(2) + '</td>' +
+      '<td><span class="badge-status ' + badgeClass + '">' + (sale.status || 'Pending') + '</span></td>' +
+      actionHTML;
+
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('searchCount').innerText = sales.length;
+  applySearch();
+}
+
+
+/* CONFIRM / REMOVE */
+function confirmOrder(invoiceNo) {
+  if (!confirm("ইনভয়েস " + invoiceNo + " কনফার্ম এবং সম্পূর্ণ Paid করতে চান?")) return;
+  if (typeof google !== 'undefined' && google.script) {
+    google.script.run.withSuccessHandler(function () {
+      alert("✅ Paid/Confirmed আপডেট হয়েছে!");
+      loadSales();
+    }).updateStatus(invoiceNo, "Confirmed");
+  } else {
+    alert("Local Test: Confirmed");
+  }
+}
+
+function showPaidSealOnMemo(isPaid) {
+  var seal = document.getElementById('memoPaidSeal');
+  if (!seal) return;
+  if (isPaid === 'Confirmed' || isPaid === 'Paid' || isPaid === true) {
+    seal.style.display = 'block';
+  } else {
+    seal.style.display = 'none';
+  }
+}
+
+function removeOrder(invoiceNo) {
+  if (!confirm("⚠️ ইনভয়েস " + invoiceNo + " সম্পূর্ণ মুছে ফেলতে চান?")) return;
+  if (typeof google !== 'undefined' && google.script) {
+    google.script.run.withSuccessHandler(function (res) {
+      if (res === false) alert('❌ ডিলিট ব্যর্থ');
+      loadSales();
+    }).deleteOrderRecord(invoiceNo);
+  } else {
+    alert("Local Test Removed");
+  }
+}
+
+
+/* EDIT POPUP */
+function openEditPopup(invoiceNo, soDate, status) {
+  document.getElementById('modalTitle').innerHTML = '<i class="fas fa-pen-to-square"></i> অর্ডার সংশোধন';
+  document.getElementById('customerInfoSection').style.display = "flex";
+  document.getElementById('customerGridSection').style.display = "grid";
+  document.getElementById('addLineBtn').style.display = "inline-flex";
+  document.getElementById('saveOrderBtn').style.display = "inline-flex";
+  document.getElementById('printMemoBtn').style.display = "inline-flex";
+  document.getElementById('stockSummaryCards').style.display = "none";
+
+  document.getElementById('orderTable').className = 'table-form-3d';
+
+  document.getElementById('orderTableHeader').innerHTML =
+    '<th style="width:40px;">#</th>' +
+    '<th>পণ্যের বিবরণ</th>' +
+    '<th style="width:120px;">রঙ</th>' +
+    '<th style="width:100px;">পরিমাণ</th>' +
+    '<th style="width:120px;">দর</th>' +
+    '<th style="width:140px; text-align:right;">টাকা</th>' +
+    '<th style="width:70px;">অ্যাকশন</th>';
+
+  document.getElementById('editModal').classList.add('show');
+  document.getElementById('popupInvoiceNo').innerText = invoiceNo;
+  document.getElementById('popupDate').innerText = soDate;
+
+  showPaidSealOnMemo(status);
+
+  var tbody = document.getElementById('orderItemsBody');
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--muted);">⏳ ডাটা লোড হচ্ছে...</td></tr>';
+
+  if (typeof google !== 'undefined' && google.script) {
+    google.script.run.withSuccessHandler(function (customers) {
+      var custList = customers || [];
+
+      google.script.run.withSuccessHandler(function (allOrders) {
+        var matchingItems = (allOrders || []).filter(function (row) {
+          return String(row[0]).trim() === String(invoiceNo).trim();
+        });
+        tbody.innerHTML = '';
+
+        if (matchingItems.length > 0) {
+          var shopName = matchingItems[0][3] || '';
+          var customerName = matchingItems[0][2] || '';
+          var phoneFromOrder = matchingItems[0][4] || '';
+
+          document.getElementById('custShop').value = shopName;
+          document.getElementById('custName').value = customerName;
+          document.getElementById('custPhone').value = phoneFromOrder;
+
+          var address = '';
+          var phoneFromCust = '';
+          if (shopName) {
+            var c = custList.find(function (x) {
+              return String(x.shopName || '').trim() === String(shopName).trim();
+            });
+            if (c) {
+              address = c.address || '';
+              phoneFromCust = c.phone || '';
+            }
+          }
+          document.getElementById('custAddress').value = address;
+          if (phoneFromCust) {
+            document.getElementById('custPhone').value = phoneFromCust;
+          }
+
+          matchingItems.forEach(function (row, idx) {
+            createDynamicRow(tbody, idx + 1, row[5] || '', row[6] || '', row[7] || 1, row[8] || 0);
+          });
+        } else {
+          createDynamicRow(tbody, 1, "", "", 1, 0);
+        }
+        updateGrandTotal();
+        window.currentEditingInvoice = invoiceNo;
+      }).getAllOrders();
+    }).getCustomersList();
+  } else {
+    tbody.innerHTML = '';
+    createDynamicRow(tbody, 1, "LED Bulb 20W", "White", 5, 100);
+    updateGrandTotal();
+    window.currentEditingInvoice = invoiceNo;
+  }
+}
+
+
+/* ROW */
+function createDynamicRow(tbody, rowNum, pName, pColor, pQty, pRate) {
+  pName = pName || ""; pColor = pColor || "";
+  pQty = pQty || 1; pRate = pRate || 0;
+
+  var tr = document.createElement('tr');
+  tr.className = 'order-row';
+  tr.innerHTML =
+    '<td style="text-align:center; font-weight:bold;">' + rowNum + '</td>' +
+    '<td><input type="text" list="product_list" class="item-name" value="' + String(pName).replace(/"/g, '&quot;') + '"></td>' +
+    '<td><input type="text" class="item-color" value="' + String(pColor).replace(/"/g, '&quot;') + '"></td>' +
+    '<td><input type="number" class="item-qty" value="' + pQty + '" oninput="calculateRow(this)"></td>' +
+    '<td><input type="number" class="item-rate" value="' + pRate + '" oninput="calculateRow(this)"></td>' +
+    '<td class="item-total" style="text-align:right; font-weight:bold; color:var(--accent);">' + (pQty * pRate).toFixed(2) + '</td>' +
+    '<td style="text-align:center;"><button class="remove-btn" onclick="removeRow(this)"><i class="fas fa-trash"></i></button></td>';
+  tbody.appendChild(tr);
+}
+
+function addRow() {
+  var tbody = document.getElementById('orderItemsBody');
+  createDynamicRow(tbody, document.querySelectorAll('#orderItemsBody .order-row').length + 1, "", "", 1, 0);
+}
+
+function removeRow(btn) {
+  btn.parentNode.parentNode.remove();
+  updateGrandTotal();
+  reindexRows();
+}
+
+function reindexRows() {
+  document.querySelectorAll('#orderItemsBody .order-row').forEach(function (row, idx) {
+    row.cells[0].innerText = idx + 1;
+  });
+}
+
+function calculateRow(input) {
+  var row = input.parentNode.parentNode;
+  var qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+  var rate = parseFloat(row.querySelector('.item-rate').value) || 0;
+  row.querySelector('.item-total').innerText = (qty * rate).toFixed(2);
+  updateGrandTotal();
+}
+
+function updateGrandTotal() {
+  var grand = 0;
+  document.querySelectorAll('.item-total').forEach(function (t) {
+    grand += parseFloat(t.innerText) || 0;
+  });
+  document.getElementById('grandTotal').innerText = grand.toFixed(2);
+}
+
+
+/* TODAY'S SUMMARY */
+function generateTodaySalesSummary() {
+  var selectedDate = document.getElementById('summaryDateFilter').value;
+  if (!selectedDate) return alert("তারিখ সিলেক্ট করুন!");
+
+  document.getElementById('orderTable').className = 'table-form-3d';
+
+  var tbody = document.getElementById('orderItemsBody');
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--muted);">⏳ সামারি তৈরি হচ্ছে...</td></tr>';
+
+  document.getElementById('modalTitle').innerHTML = '<i class="fas fa-chart-bar"></i> পণ্যভিত্তিক বিক্রয় সামারি';
+  document.getElementById('customerInfoSection').style.display = "none";
+  document.getElementById('customerGridSection').style.display = "none";
+  document.getElementById('addLineBtn').style.display = "none";
+  document.getElementById('saveOrderBtn').style.display = "none";
+  document.getElementById('printMemoBtn').style.display = "inline-flex";
+  document.getElementById('stockSummaryCards').style.display = "none";
+  showPaidSealOnMemo(false);
+
+  document.getElementById('orderTableHeader').innerHTML =
+    '<th style="width:50px;">#</th>' +
+    '<th>পণ্যের নাম</th>' +
+    '<th style="width:150px;">রঙ</th>' +
+    '<th style="width:150px;">মোট পরিমাণ</th>' +
+    '<th style="width:200px; text-align:right;">মোট মূল্য</th>';
+
+  if (typeof google !== 'undefined' && google.script) {
+    google.script.run.withSuccessHandler(function (allOrders) {
+      var filtered = (allOrders || []).filter(function (row) {
+        if (!row[1]) return false;
+        var d = "";
+        if (row[1] instanceof Date) {
+          d = row[1].toISOString().split('T')[0];
+        } else {
+          d = String(row[1]).split('T')[0].trim();
+        }
+        return d === selectedDate.trim();
+      });
+      processAndRenderSummary(filtered);
+    }).getAllOrders();
+  } else {
+    processAndRenderSummary([]);
+  }
+  document.getElementById('editModal').classList.add('show');
+}
+
+function processAndRenderSummary(items) {
+  var tbody = document.getElementById('orderItemsBody');
+  tbody.innerHTML = '';
+
+  if (!items || items.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#f87171; font-weight:bold;">⚠️ এই তারিখে কোনো বিক্রয় নেই।</td></tr>';
+    document.getElementById('grandTotal').innerText = "0.00";
+    return;
+  }
+
+  var summaryMap = {};
+
+  items.forEach(function (row) {
+    var pName = row[5];
+    var pColor = row[6];
+    var qty = parseFloat(row[7]) || 0;
+    var rate = parseFloat(row[8]) || 0;
+    var total = parseFloat(row[9]) || (qty * rate);
+
+    if (pName) {
+      var key = String(pName).trim().toLowerCase() + "_" + (pColor ? String(pColor).trim().toLowerCase() : "");
+      if (!summaryMap[key]) {
+        summaryMap[key] = { name: pName, color: pColor || "N/A", qty: 0, total: 0 };
+      }
+      summaryMap[key].qty += qty;
+      summaryMap[key].total += total;
+    }
+  });
+
+  var index = 1, finalGrandTotal = 0;
+  for (var k in summaryMap) {
+    var data = summaryMap[k];
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td style="text-align:center; font-weight:bold;">' + (index++) + '</td>' +
+      '<td style="font-weight:600; color:var(--text);">' + data.name + '</td>' +
+      '<td style="text-align:center; color:var(--muted);">' + data.color + '</td>' +
+      '<td style="text-align:center; font-weight:bold; color:#34d399;">' + data.qty + '</td>' +
+      '<td style="text-align:right; font-weight:bold; color:var(--accent);">' + data.total.toFixed(2) + ' ৳</td>';
+    tbody.appendChild(tr);
+    finalGrandTotal += data.total;
+  }
+  document.getElementById('grandTotal').innerText = finalGrandTotal.toFixed(2);
+  window.currentEditingInvoice = "SUMMARY_" + document.getElementById('summaryDateFilter').value;
+}
+
+
+/* SAVE ORDER */
+function submitOrder() {
+  var invoiceNo = window.currentEditingInvoice;
+  if (!invoiceNo) return alert("ইনভয়েস নম্বর পাওয়া যায়নি!");
+
+  var customerInfo = {
+    date: document.getElementById('popupDate').innerText,
+    shop: document.getElementById('custShop').value.trim(),
+    name: document.getElementById('custName').value.trim(),
+    address: document.getElementById('custAddress').value.trim(),
+    phone: document.getElementById('custPhone').value.trim()
+  };
+  if (!customerInfo.shop) return alert("দোকানের নাম দরকার!");
+
+  var itemsList = [];
+  document.querySelectorAll('#orderItemsBody .order-row').forEach(function (row) {
+    var name = row.querySelector('.item-name').value;
+    if (name && name.trim()) {
+      itemsList.push({
+        name: name.trim(),
+        color: row.querySelector('.item-color').value,
+        qty: parseFloat(row.querySelector('.item-qty').value) || 0,
+        rate: parseFloat(row.querySelector('.item-rate').value) || 0
+      });
+    }
+  });
+
+  if (itemsList.length === 0) return alert("অন্তত একটি প্রোডাক্ট দিন!");
+
+  if (typeof google !== 'undefined' && google.script) {
+    var btn = document.getElementById('saveOrderBtn');
+    var oldText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    btn.disabled = true;
+
+    google.script.run
+      .withSuccessHandler(function (res) {
+        btn.innerHTML = oldText;
+        btn.disabled = false;
+        if (res && String(res).indexOf('Error') === 0) {
+          alert("❌ " + res);
+          return;
+        }
+        alert("✅ ইনভয়েস সফলভাবে সংরক্ষণ হয়েছে!");
+        closePopup();
+        loadSales();
+      })
+      .withFailureHandler(function (err) {
+        btn.innerHTML = oldText;
+        btn.disabled = false;
+        alert("❌ ব্যর্থ: " + err);
+      })
+      .updateOrderData(invoiceNo, customerInfo, itemsList);
+  } else {
+    alert("Local Save Success");
+    closePopup();
+  }
+}
+
+
+/* PRINT MEMO */
+function printCrystalReport() {
+  var mode = String(window.currentEditingInvoice || '');
+  var isSummary = mode.startsWith("SUMMARY_");
+
+  var d = document.getElementById('summaryDateFilter').value || document.getElementById('popupDate').innerText;
+  var g = document.getElementById('grandTotal').innerText;
+
+  var reportTitle = isSummary ? "আজকের টোটাল বিক্রয় সামারি রিপোর্ট" : "মীম ইলেকট্রিক এন্ড হার্ডওয়্যার";
+
+  var rowsHTML = "";
+  var infoTableHTML = "";
+
+  if (isSummary) {
+    document.querySelectorAll('#orderItemsBody tr').forEach(function (r, idx) {
+      if (r.cells.length >= 5) {
+        rowsHTML += '<tr>' +
+          '<td style="text-align:center; border:1px solid #000;">' + (idx + 1) + '</td>' +
+          '<td style="padding:8px; border:1px solid #000; font-weight:600;">' + r.cells[1].innerText + '</td>' +
+          '<td style="text-align:center; border:1px solid #000;">' + r.cells[2].innerText + '</td>' +
+          '<td style="text-align:center; border:1px solid #000; font-weight:bold;">' + r.cells[3].innerText + '</td>' +
+          '<td style="text-align:right; padding-right:8px; border:1px solid #000; font-weight:bold;">' + r.cells[4].innerText + '</td>' +
+        '</tr>';
+      }
+    });
+  } else {
+    var i = document.getElementById('popupInvoiceNo').innerText;
+    var s = document.getElementById('custShop').value;
+    var n = document.getElementById('custName').value;
+    var a = document.getElementById('custAddress').value;
+    var p = document.getElementById('custPhone').value;
+    var sealEl = document.getElementById('memoPaidSeal');
+    var isPaid = (sealEl && sealEl.style.display === 'block');
+    var sealHTML = isPaid ? '<div class="crystal-paid-seal">PAID</div>' : '';
+
+    document.querySelectorAll('#orderItemsBody .order-row').forEach(function (r, idx) {
+      var nameField = r.querySelector('.item-name');
+      if (nameField && nameField.value) {
+        rowsHTML += '<tr>' +
+          '<td style="text-align:center; border:1px solid #000;">' + (idx + 1) + '</td>' +
+          '<td style="padding:5px; border:1px solid #000;">' + nameField.value + '</td>' +
+          '<td style="text-align:center; border:1px solid #000;">' + r.querySelector('.item-color').value + '</td>' +
+          '<td style="text-align:center; border:1px solid #000;">' + r.querySelector('.item-qty').value + '</td>' +
+          '<td style="text-align:right; border:1px solid #000;">' + r.querySelector('.item-rate').value + '</td>' +
+          '<td style="text-align:right; border:1px solid #000;">' + r.querySelector('.item-total').innerText + '</td>' +
+        '</tr>';
+      }
+    });
+
+    infoTableHTML =
+      '<table class="info-table">' +
+        '<tr><td><strong>দোকান:</strong> ' + s + '</td><td style="text-align:right;"><strong>ইনভয়েস:</strong> ' + i + '</td></tr>' +
+        '<tr><td><strong>গ্রাহক:</strong> ' + n + '</td><td style="text-align:right;"><strong>তারিখ:</strong> ' + d + '</td></tr>' +
+        '<tr><td><strong>ঠিকানা:</strong> ' + a + '</td><td style="text-align:right;"><strong>মোবাইল:</strong> ' + p + '</td></tr>' +
+      '</table>';
+
+    window.__sealHTML = sealHTML;
+  }
+
+  var win = window.open('', '_blank');
+  win.document.write(
+    '<html><head><title>Report - ' + d + '</title>' +
+    '<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700;800&display=swap" rel="stylesheet">' +
+    '<style>' +
+      'body { font-family: "Noto Sans Bengali", Arial, sans-serif; padding: 20px; position: relative; color: #000; }' +
+      '.header { text-align:center; background-color:#0b5cab; color:white; padding:15px; margin-bottom: 20px; border-radius:8px; }' +
+      '.info-table { width:100%; border-collapse:collapse; margin-bottom:15px; }' +
+      '.info-table td { border: none !important; padding: 5px 0; font-size: 14px; }' +
+      '.data-table { width:100%; border-collapse:collapse; margin-top:15px; }' +
+      '.data-table th { background-color:#0b5cab; color:white; padding:8px 5px; border:1px solid #000; font-size: 12px; }' +
+      '.data-table td { border:1px solid #000; padding:6px 5px; font-size: 12px; }' +
+      '.footer { text-align:right; margin-top:25px; font-weight:bold; font-size:18px; border-top: 2px dashed #000; padding-top:10px; }' +
+      '.crystal-paid-seal {' +
+        "position: absolute; top: 55%; left: 50%; transform: translate(-50%,-50%) rotate(-20deg);" +
+        "border: 6px dashed #dc3545; color: #dc3545; font-family: 'Impact','Arial Black',sans-serif;" +
+        'font-size: 90px; font-weight: bold; padding: 10px 40px; text-transform: uppercase; opacity: 0.35; z-index: 9999; letter-spacing: 5px;' +
+      '}' +
+      '@media print { * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } ' +
+        '.header { background-color:#0b5cab !important; color:white !important; } ' +
+        '.data-table th { background-color:#0b5cab !important; color:white !important; } ' +
+        '.data-table td, .data-table th { padding: 4px 3px !important; font-size: 11px !important; } }' +
+    '</style></head><body>' +
+      (!isSummary && window.__sealHTML ? window.__sealHTML : '') +
+      '<div class="header"><h1 style="margin:0;">' + reportTitle + '</h1>' +
+        (isSummary ? '<h3 style="margin:5px 0 0 0;">তারিখ: ' + d + '</h3>' : '') +
+      '</div>' +
+      infoTableHTML +
+      '<table class="data-table"><thead><tr>' +
+        '<th style="width:28px;">#</th>' +
+        '<th>' + (isSummary ? 'পণ্যের নাম' : 'পণ্য') + '</th>' +
+        '<th style="width:120px;">রঙ</th>' +
+        '<th style="width:100px;">পরিমাণ</th>' +
+        (!isSummary ? '<th style="width:120px;">দর</th>' : '') +
+        '<th style="width:150px;">' + (isSummary ? 'মোট মূল্য' : 'মোট') + '</th>' +
+      '</tr></thead><tbody>' + rowsHTML + '</tbody></table>' +
+      '<div class="footer">টোটাল: ' + g + ' টাকা</div>' +
+      '<script>window.onload = function(){ window.print(); setTimeout(function(){ window.close(); }, 500); };<\/script>' +
+    '</body></html>'
+  );
+  win.document.close();
+}
+
+
+/* STOCK REPORT — Date-to-Date */
+function generateStockReportByDate() {
+  var today = new Date().toISOString().split('T')[0];
+  var selectedDate = document.getElementById('summaryDateFilter').value || today;
+
+  document.getElementById('stockReportModal').classList.add('show');
+  document.getElementById('srFromDate').value = selectedDate;
+  document.getElementById('srToDate').value = selectedDate;
+  document.getElementById('srFilterType').value = 'all';
+  document.getElementById('srSortBy').value = 'hsn';
+  document.getElementById('srSortDir').value = 'asc';
+
+  reloadStockReport();
+}
+
+function reloadStockReport() {
+  var fromDate = document.getElementById('srFromDate').value;
+  var toDate = document.getElementById('srToDate').value;
+  var filterType = document.getElementById('srFilterType').value;
+  var sortBy = document.getElementById('srSortBy').value;
+  var sortDir = document.getElementById('srSortDir').value;
+
+  if (!fromDate || !toDate) {
+    alert("From Date এবং To Date দুটোই দিন!");
+    return;
+  }
+
+  if (fromDate > toDate) {
+    var tmp = fromDate;
+    fromDate = toDate;
+    toDate = tmp;
+    document.getElementById('srFromDate').value = fromDate;
+    document.getElementById('srToDate').value = toDate;
+  }
+
+  var label = (fromDate === toDate)
+    ? 'তারিখ: ' + fromDate
+    : 'রেঞ্জ: ' + fromDate + ' → ' + toDate;
+  document.getElementById('srDateLabel').innerText = label;
+
+  var tbody = document.getElementById('srTableBody');
+  tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:30px; color:var(--muted);"><i class="fas fa-spinner fa-spin"></i> লোড হচ্ছে...</td></tr>';
+
+  if (typeof google !== 'undefined' && google.script) {
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (!res || !res.success) {
+          tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:30px; color:#f87171; font-weight:bold;">❌ ' +
+            (res && res.error ? res.error : 'Unknown error') + '</td></tr>';
+          return;
+        }
+        currentStockReportData = res;
+        renderAdvancedStockReport(res);
+      })
+      .withFailureHandler(function (err) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:30px; color:#f87171; font-weight:bold;">❌ ' + err + '</td></tr>';
+      })
+      .getStockReportAdvanced(fromDate, toDate, filterType, sortBy, sortDir);
+  } else {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:30px; color:var(--muted);">Google Apps Script ছাড়া কাজ করবে না।</td></tr>';
+  }
+}
+
+function renderAdvancedStockReport(res) {
+  var tbody = document.getElementById('srTableBody');
+  tbody.innerHTML = '';
+
+  var rangeLabel = (res.fromDate === res.toDate)
+    ? res.fromDate
+    : res.fromDate + ' → ' + res.toDate;
+
+  var cards = document.getElementById('srSummaryCards');
+  cards.style.display = 'grid';
+  cards.innerHTML =
+    '<div class="stock-summary-card orange">' +
+      '<div class="lbl">🛒 ' + rangeLabel + ' এ বিক্রয়</div>' +
+      '<div class="val">৳ ' + res.grandTotalInRange.toFixed(2) + '</div>' +
+    '</div>' +
+    '<div class="stock-summary-card blue">' +
+      '<div class="lbl">📦 রেঞ্জে মোট বিক্রি</div>' +
+      '<div class="val">' + res.totalSoldQty + ' পিস</div>' +
+    '</div>' +
+    '<div class="stock-summary-card green">' +
+      '<div class="lbl">✅ To Date শেষে স্টক</div>' +
+      '<div class="val">' + res.totalStockQty + ' পিস</div>' +
+    '</div>' +
+    '<div class="stock-summary-card red">' +
+      '<div class="lbl">💰 স্টক মূল্য</div>' +
+      '<div class="val">৳ ' + res.totalStockValue.toFixed(2) + '</div>' +
+    '</div>';
+
+  if (!res.items || res.items.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:30px; color:var(--muted);">' +
+      '<i class="fas fa-inbox" style="font-size:28px; opacity:0.4; display:block; margin-bottom:10px;"></i>' +
+      'কোনো ডাটা পাওয়া যায়নি</td></tr>';
+    return;
+  }
+
+  res.items.forEach(function (it, idx) {
+    var stockClass = 'stock-qty-ok';
+    if (it.currentStock <= 0) stockClass = 'stock-qty-out';
+    else if (it.currentStock <= 10) stockClass = 'stock-qty-low';
+
+    var hsnDisplay = it.hsnCode || '<span style="color:var(--muted);">—</span>';
+    var soldDisplay = it.soldQty > 0
+      ? '<span style="color:#fb923c; font-weight:800;">' + it.soldQty + '</span>'
+      : '<span style="color:var(--muted);">0</span>';
+    var amountDisplay = it.soldAmount > 0
+      ? '৳ ' + it.soldAmount.toFixed(2)
+      : '<span style="color:var(--muted);">—</span>';
+
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td style="text-align:center; font-weight:bold; color:var(--muted);">' + (idx + 1) + '</td>' +
+      '<td style="text-align:center; font-weight:700; color:#a855f7;">' + hsnDisplay + '</td>' +
+      '<td style="text-align:left; padding-left:14px; font-weight:600; color:var(--text);">' +
+        escapeHtml(it.productName) +
+        (it.barcode ? '<div style="font-size:10px; color:var(--muted); margin-top:2px;">📷 ' + escapeHtml(it.barcode) + '</div>' : '') +
+      '</td>' +
+      '<td style="text-align:center;">' + soldDisplay + '</td>' +
+      '<td style="text-align:right; font-weight:600; color:var(--accent);">' + amountDisplay + '</td>' +
+      '<td style="text-align:center; color:var(--muted);">' + it.stockBefore + '</td>' +
+      '<td style="text-align:center;" class="stock-qty-cell ' + stockClass + '">' + it.currentStock + '</td>' +
+      '<td style="text-align:right; font-weight:700;" class="stock-value-cell">৳ ' + it.stockValue.toFixed(2) + '</td>';
+
+    tbody.appendChild(tr);
+  });
+}
+
+function closeStockReport() {
+  document.getElementById('stockReportModal').classList.remove('show');
+}
+
+function printStockReport(type) {
+  type = String(type || 'full').toLowerCase();
+
+  var res = currentStockReportData;
+  if (!res || !res.items || res.items.length === 0) {
+    alert("প্রিন্ট করার জন্য কোনো ডাটা নেই।");
+    return;
+  }
+
+  var blankMode = (type === 'blank');
+
+  var totalQty = 0, totalValue = 0, totalSold = 0, totalSoldAmount = 0;
+
+  var rowsHTML = res.items.map(function (it, idx) {
+    totalQty += it.currentStock;
+    totalValue += it.stockValue;
+    totalSold += it.soldQty;
+    totalSoldAmount += it.soldAmount;
+
+    if (type === 'compact') {
+      return '<tr>' +
+        '<td class="col-serial">' + (idx + 1) + '</td>' +
+        '<td class="col-hsn">' + (it.hsnCode || '—') + '</td>' +
+        '<td class="col-name">' + escapeHtml(it.productName) + '</td>' +
+        '<td class="col-num strong">' + it.currentStock + '</td>' +
+      '</tr>';
+    }
+
+    if (blankMode) {
+      return '<tr>' +
+        '<td class="col-serial">' + (idx + 1) + '</td>' +
+        '<td class="col-hsn">' + (it.hsnCode || '—') + '</td>' +
+        '<td class="col-name">' + escapeHtml(it.productName) + '</td>' +
+        '<td class="col-num">' + it.soldQty + '</td>' +
+        '<td class="col-num blank-cell">&nbsp;</td>' +
+        '<td class="col-num">' + it.stockBefore + '</td>' +
+        '<td class="col-num strong">' + it.currentStock + '</td>' +
+        '<td class="col-num blank-cell">&nbsp;</td>' +
+      '</tr>';
+    }
+
+    return '<tr>' +
+      '<td class="col-serial">' + (idx + 1) + '</td>' +
+      '<td class="col-hsn">' + (it.hsnCode || '—') + '</td>' +
+      '<td class="col-name">' + escapeHtml(it.productName) + '</td>' +
+      '<td class="col-num">' + it.soldQty + '</td>' +
+      '<td class="col-num">' + it.soldAmount.toFixed(2) + '</td>' +
+      '<td class="col-num">' + it.stockBefore + '</td>' +
+      '<td class="col-num strong">' + it.currentStock + '</td>' +
+      '<td class="col-num strong">' + it.stockValue.toFixed(2) + '</td>' +
+    '</tr>';
+  }).join('');
+
+  var colCount = (type === 'compact') ? 4 : 8;
+
+  var now = new Date();
+  var dateStr = now.toLocaleDateString('en-GB');
+  var timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+  var rangeLabel = (res.fromDate === res.toDate)
+    ? 'তারিখ: ' + res.fromDate
+    : 'রেঞ্জ: ' + res.fromDate + ' → ' + res.toDate;
+
+  var repeatingHeader =
+    '<tr class="repeating-header">' +
+      '<td colspan="' + colCount + '">' +
+        '<div class="report-header">' +
+          '<h1>মীম ইলেকট্রিক এন্ড হার্ডওয়্যার</h1>' +
+          '<div class="sub">Khalishpur, Khulna &nbsp;|&nbsp; 01843-369936, 01849-604530</div>' +
+        '</div>' +
+        '<div class="report-title">' +
+          (type === 'compact' ? 'Stock List (Compact)' :
+           type === 'blank'   ? 'Stock List (Blank Qty)' :
+                                'Stock Report') +
+        '</div>' +
+        '<div class="meta">' +
+          '<span><strong>' + rangeLabel + '</strong></span>' +
+          '<span><strong>Printed:</strong> ' + dateStr + ' ' + timeStr + '</span>' +
+          '<span><strong>Total:</strong> ' + res.items.length + ' items</span>' +
+        '</div>' +
+      '</td>' +
+    '</tr>';
+
+  var columnHeader = '';
+  if (type === 'compact') {
+    columnHeader =
+      '<tr>' +
+        '<th class="col-serial">#</th>' +
+        '<th class="col-hsn">HSN</th>' +
+        '<th>Product Name</th>' +
+        '<th class="col-num">Stock</th>' +
+      '</tr>';
+  } else {
+    columnHeader =
+      '<tr>' +
+        '<th class="col-serial">#</th>' +
+        '<th class="col-hsn">HSN</th>' +
+        '<th>Product Name</th>' +
+        '<th class="col-num">Sold Qty</th>' +
+        '<th class="col-num">Amount</th>' +
+        '<th class="col-num">Stock Before</th>' +
+        '<th class="col-num">Stock After</th>' +
+        '<th class="col-num">Value</th>' +
+      '</tr>';
+  }
+
+  var tfoot = '';
+  if (type === 'compact') {
+    tfoot = '<tfoot><tr>' +
+      '<td class="count" colspan="3">Total Products: <strong>' + res.items.length + '</strong></td>' +
+      '<td class="value">' + totalQty + '</td>' +
+    '</tr></tfoot>';
+  } else if (type === 'blank') {
+    tfoot = '<tfoot><tr>' +
+      '<td class="count" colspan="3">Total Products: <strong>' + res.items.length + '</strong></td>' +
+      '<td class="value">' + totalSold + '</td>' +
+      '<td class="value blank-cell">&nbsp;</td>' +
+      '<td class="value">&nbsp;</td>' +
+      '<td class="value">' + totalQty + '</td>' +
+      '<td class="value blank-cell">&nbsp;</td>' +
+    '</tr></tfoot>';
+  } else {
+    tfoot = '<tfoot><tr>' +
+      '<td class="count" colspan="3">Total Products: <strong>' + res.items.length + '</strong></td>' +
+      '<td class="value">' + totalSold + '</td>' +
+      '<td class="value">' + totalSoldAmount.toFixed(2) + '</td>' +
+      '<td class="value">&nbsp;</td>' +
+      '<td class="value">' + totalQty + '</td>' +
+      '<td class="value">৳ ' + totalValue.toFixed(2) + '</td>' +
+    '</tr></tfoot>';
+  }
+
+  var printWin = window.open('', '_blank', 'width=1100,height=800');
+  if (!printWin) { alert('Please allow popups to print.'); return; }
+
+  var html = ''
+    + '<!DOCTYPE html>'
+    + '<html lang="bn">'
+    + '<head>'
+    +   '<meta charset="UTF-8">'
+    +   '<title>Stock Report</title>'
+    +   '<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
+    +   '<style>'
+    +     '* { box-sizing: border-box; margin: 0; padding: 0; }'
+    +     'body { font-family: "Noto Sans Bengali", "Outfit", "Segoe UI", Arial, sans-serif; padding: 20px 24px; background: #fff; color: #111; font-size: 13px; }'
+    +     'table { width: 100%; border-collapse: collapse; font-size: 12.5px; }'
+    +     'thead { display: table-header-group; }'
+    +     'tfoot { display: table-footer-group; }'
+    +     'thead tr.repeating-header td { border: none !important; background: transparent !important; padding: 0 0 6px 0 !important; }'
+    +     '.report-header { text-align: center; border-bottom: 3px double #0b5cab; padding-bottom: 10px; margin-bottom: 6px; }'
+    +     '.report-header h1 { font-size: 22px; color: #0b5cab; font-weight: 800; letter-spacing: 0.4px; margin-bottom: 3px; }'
+    +     '.report-header .sub { font-size: 12px; color: #444; font-weight: 500; }'
+    +     '.report-title { text-align: center; font-size: 15px; font-weight: 800; color: #1a1a1a; background: #eef4fb; padding: 7px 0; margin: 8px 0 6px 0; border-top: 1px solid #cfd9e6; border-bottom: 1px solid #cfd9e6; letter-spacing: 1px; text-transform: uppercase; }'
+    +     '.meta { display: flex; justify-content: space-between; font-size: 11px; color: #555; margin-bottom: 6px; padding: 0 2px; }'
+    +     'thead th { background: #0b5cab; color: #fff; padding: 8px 10px; text-align: left; font-weight: 700; font-size: 11.5px; letter-spacing: 0.4px; text-transform: uppercase; border: 1px solid #0b5cab; white-space: nowrap; }'
+    +     'thead th.col-serial { width: 40px; text-align: center; }'
+    +     'thead th.col-hsn { width: 90px; text-align: center; }'
+    +     'thead th.col-num { width: 110px; text-align: right; }'
+    +     'tbody td { padding: 7px 10px; border: 1px solid #d7dde5; vertical-align: middle; color: #111; }'
+    +     'tbody tr:nth-child(even) td { background: #f7fafd; }'
+    +     'td.col-serial { text-align: center; font-weight: 700; color: #666; width: 40px; }'
+    +     'td.col-hsn { text-align: center; font-weight: 700; color: #6b21a8; }'
+    +     'td.col-name { font-weight: 500; }'
+    +     'td.col-num { text-align: right; font-variant-numeric: tabular-nums; }'
+    +     'td.col-num.strong { font-weight: 700; color: #0b5cab; }'
+    +     'td.blank-cell { background: #fbfdff !important; }'
+    +     'tfoot td { padding: 10px; font-weight: 800; background: #eef4fb; border: 1px solid #0b5cab; color: #0b5cab; font-size: 13px; }'
+    +     'tfoot td.value { text-align: right; font-variant-numeric: tabular-nums; }'
+    +     'tfoot td.count { text-align: center; }'
+    +     'tfoot td.blank-cell { background: #eef4fb !important; }'
+    +     '.signature { margin-top: 40px; display: flex; justify-content: space-between; font-size: 11px; color: #333; }'
+    +     '.signature div { border-top: 1px solid #333; padding-top: 4px; width: 200px; text-align: center; }'
+    +     '.report-footer { margin-top: 14px; padding-top: 10px; border-top: 1px solid #cfd9e6; display: flex; justify-content: space-between; font-size: 11px; color: #666; }'
+    +     '@page { margin: 12mm 10mm; }'
+    +     '@media print {'
+    +       'body { padding: 0; font-size: 11.5px; }'
+    +       'thead { display: table-header-group !important; }'
+    +       'tr { page-break-inside: avoid; }'
+    +       '.report-header h1 { font-size: 20px; }'
+    +       '.signature, .report-footer { page-break-inside: avoid; }'
+    +     '}'
+    +   '</style>'
+    + '</head>'
+    + '<body>'
+    +   '<table>'
+    +     '<thead>' + repeatingHeader + columnHeader + '</thead>'
+    +     '<tbody>' + rowsHTML + '</tbody>'
+    +     tfoot
+    +   '</table>'
+    +   '<div class="signature">'
+    +     '<div>Prepared By</div>'
+    +     '<div>Authorized Signature</div>'
+    +   '</div>'
+    +   '<div class="report-footer">'
+    +     '<span>Generated by Mim ERP</span>'
+    +     '<span>মীম ইলেকট্রিক এন্ড হার্ডওয়্যার</span>'
+    +   '</div>'
+    +   '<scr' + 'ipt>window.onload = function () { setTimeout(function () { window.print(); }, 450); };<\/scr' + 'ipt>'
+    + '</body></html>';
+
+  printWin.document.open();
+  printWin.document.write(html);
+  printWin.document.close();
+  printWin.focus();
+}
+
+
+/* =========================================================
+   PARTIAL PAYMENT
+   ========================================================= */
+function openReceivePay(invoiceNo) {
+  currentReceiveInvoice = invoiceNo;
+
+  var sale = (cachedSalesData || []).find(function (s) {
+    return String(s.invoiceNum) === String(invoiceNo);
+  });
+
+  if (!sale) { alert("Invoice পাওয়া যায়নি!"); return; }
+
+  document.getElementById('rpInvoice').innerText = invoiceNo;
+  document.getElementById('rpCustomer').innerText = sale.customerName || '-';
+  document.getElementById('rpTotal').innerText = parseFloat(sale.totalAmount || 0).toFixed(2);
+  document.getElementById('rpPaid').innerText = parseFloat(sale.totalReceived || 0).toFixed(2);
+  document.getElementById('rpDue').innerText = parseFloat(sale.soBalance || 0).toFixed(2);
+  document.getElementById('rpStatus').innerText = sale.status || 'Due';
+
+  document.getElementById('rpAmount').value = '';
+  document.getElementById('rpMethod').value = 'Cash';
+  document.getElementById('rpNote').value = '';
+
+  document.getElementById('rpHistoryBody').innerHTML =
+    '<tr><td colspan="5" style="color:var(--muted);">লোড হচ্ছে...</td></tr>';
+
+  document.getElementById('receivePayModal').classList.add('show');
+
+  checkPaymentLock(sale);
+
+  var amountInput = document.getElementById('rpAmount');
+  amountInput.oninput = function() {
+    validatePaymentAmount(parseFloat(this.value) || 0, sale);
+  };
+
+  if (typeof google !== 'undefined' && google.script) {
+    google.script.run.withSuccessHandler(function (rows) {
+      renderPayHistory(rows || []);
+    }).getPaymentsByInvoice(invoiceNo);
+  } else {
+    renderPayHistory([]);
+  }
+}
+
+function checkPaymentLock(sale) {
+  var due = parseFloat(sale.soBalance || 0);
+  var total = parseFloat(sale.totalAmount || 0);
+  var paid = parseFloat(sale.totalReceived || 0);
+  var saveBtn = document.querySelector('#receivePayModal .btn-pay-save');
+  var amountInput = document.getElementById('rpAmount');
+  var warningBox = document.getElementById('rpWarningBox');
+
+  if (!warningBox) {
+    warningBox = document.createElement('div');
+    warningBox.id = 'rpWarningBox';
+    warningBox.style.cssText =
+      'display:none; padding:12px 16px; border-radius:10px; margin-bottom:12px;' +
+      'font-size:13px; font-weight:600; line-height:1.5;';
+    var amountRow = amountInput.closest('.pay-input-row');
+    if (amountRow) amountRow.parentNode.insertBefore(warningBox, amountRow);
+  }
+
+  if (due <= 0.01) {
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.style.opacity = '0.4';
+      saveBtn.style.cursor = 'not-allowed';
+      saveBtn.innerHTML = '<i class="fas fa-lock"></i> Payment Complete';
+    }
+    if (amountInput) {
+      amountInput.disabled = true;
+      amountInput.style.opacity = '0.5';
+      amountInput.style.cursor = 'not-allowed';
+      amountInput.placeholder = 'সম্পূর্ণ পরিশোধিত';
+    }
+    warningBox.style.display = 'block';
+    warningBox.style.background = 'rgba(16,185,129,0.12)';
+    warningBox.style.color = '#34d399';
+    warningBox.style.border = '1px solid rgba(16,185,129,0.35)';
+    warningBox.innerHTML =
+      '<i class="fas fa-check-circle"></i> ' +
+      '<strong>এই Invoice সম্পূর্ণ পরিশোধিত।</strong><br>' +
+      'মোট ৳' + total.toFixed(2) + ' এর মধ্যে ৳' + paid.toFixed(2) +
+      ' গ্রহণ করা হয়েছে। আর কোনো পেমেন্ট নেওয়া যাবে না।';
+  } else {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.style.opacity = '1';
+      saveBtn.style.cursor = 'pointer';
+      saveBtn.innerHTML = '<i class="fas fa-floppy-disk"></i> Save Payment';
+    }
+    if (amountInput) {
+      amountInput.disabled = false;
+      amountInput.style.opacity = '1';
+      amountInput.style.cursor = 'auto';
+      amountInput.placeholder = '0.00';
+    }
+    warningBox.style.display = 'none';
+  }
+}
+
+function validatePaymentAmount(amount, sale) {
+  var due = parseFloat(sale.soBalance || 0);
+  var warningBox = document.getElementById('rpWarningBox');
+  var saveBtn = document.querySelector('#receivePayModal .btn-pay-save');
+
+  if (due <= 0.01) return;
+
+  if (amount <= 0) {
+    if (warningBox) warningBox.style.display = 'none';
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.style.opacity = '1';
+      saveBtn.style.cursor = 'pointer';
+      saveBtn.innerHTML = '<i class="fas fa-floppy-disk"></i> Save Payment';
+    }
+    return;
+  }
+
+  if (amount > due + 0.01) {
+    if (warningBox) {
+      warningBox.style.display = 'block';
+      warningBox.style.background = 'rgba(239,68,68,0.12)';
+      warningBox.style.color = '#f87171';
+      warningBox.style.border = '1px solid rgba(239,68,68,0.35)';
+      warningBox.innerHTML =
+        '<i class="fas fa-exclamation-triangle"></i> ' +
+        '<strong>সতর্কতা:</strong> বাকি আছে ৳' + due.toFixed(2) +
+        ', কিন্তু আপনি ৳' + amount.toFixed(2) + ' দিচ্ছেন।<br>' +
+        'সর্বোচ্চ ৳' + due.toFixed(2) + ' নেওয়া যাবে।';
+    }
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.style.opacity = '0.4';
+      saveBtn.style.cursor = 'not-allowed';
+      saveBtn.innerHTML = '<i class="fas fa-lock"></i> Amount বেশি';
+    }
+  } else {
+    if (warningBox) {
+      warningBox.style.display = 'block';
+      warningBox.style.background = 'rgba(56,189,248,0.12)';
+      warningBox.style.color = 'var(--accent)';
+      warningBox.style.border = '1px solid var(--accent)';
+      warningBox.innerHTML =
+        '<i class="fas fa-info-circle"></i> ' +
+        '৳' + amount.toFixed(2) + ' নিলে বাকি থাকবে ৳' +
+        (due - amount).toFixed(2) + '।';
+    }
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.style.opacity = '1';
+      saveBtn.style.cursor = 'pointer';
+      saveBtn.innerHTML = '<i class="fas fa-floppy-disk"></i> Save Payment';
+    }
+  }
+}
+
+function renderPayHistory(rows) {
+  var tbody = document.getElementById('rpHistoryBody');
+  tbody.innerHTML = '';
+  if (!rows || rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--muted);">এখনো কোনো পেমেন্ট নেই</td></tr>';
+    return;
+  }
+  rows.forEach(function (r, i) {
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + (i + 1) + '</td>' +
+      '<td>' + (r.date || '') + '</td>' +
+      '<td style="text-align:right; font-weight:bold;">৳ ' + parseFloat(r.amount || 0).toFixed(2) + '</td>' +
+      '<td>' + (r.method || 'Cash') + '</td>' +
+      '<td style="font-size:11px;">' + (r.note || '') + '</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function saveReceivePayment() {
+  var invoiceNo = currentReceiveInvoice;
+  if (!invoiceNo) return;
+
+  var amount = parseFloat(document.getElementById('rpAmount').value) || 0;
+  if (amount <= 0) { alert("সঠিক টাকার পরিমাণ দিন!"); return; }
+
+  var method = document.getElementById('rpMethod').value;
+  var note   = document.getElementById('rpNote').value.trim();
+
+  var saleCheck = (cachedSalesData || []).find(function (s) {
+    return String(s.invoiceNum) === String(invoiceNo);
+  });
+  if (saleCheck) {
+    var dueCheck = parseFloat(saleCheck.soBalance || 0);
+    if (dueCheck <= 0.01) {
+      alert("❌ এই Invoice সম্পূর্ণ পরিশোধিত। আর পেমেন্ট নেওয়া যাবে না।");
+      return;
+    }
+    if (amount > dueCheck + 0.01) {
+      alert("❌ বাকি আছে মাত্র ৳" + dueCheck.toFixed(2) + "। এর বেশি নেওয়া যাবে না।");
+      return;
+    }
+  }
+
+  var btn = event.target;
+  var oldText = btn.innerHTML;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+  btn.disabled = true;
+
+  google.script.run
+    .withSuccessHandler(function (res) {
+      btn.innerHTML = oldText;
+      btn.disabled = false;
+      if (!res || !res.success) {
+        alert("❌ " + (res && res.error ? res.error : "ব্যর্থ"));
+        return;
+      }
+      alert("✅ পেমেন্ট সংরক্ষণ হয়েছে!");
+      closeReceivePay();
+      loadSales();
+    })
+    .withFailureHandler(function (err) {
+      btn.innerHTML = oldText;
+      btn.disabled = false;
+      alert("❌ " + err);
+    })
+    .addPartialPayment(invoiceNo, amount, method, note);
+}
+
+function closeReceivePay() {
+  document.getElementById('receivePayModal').classList.remove('show');
+  currentReceiveInvoice = null;
+
+  var amountInput = document.getElementById('rpAmount');
+  if (amountInput) {
+    amountInput.disabled = false;
+    amountInput.style.opacity = '1';
+    amountInput.style.cursor = 'auto';
+    amountInput.value = '';
+    amountInput.placeholder = '0.00';
+    amountInput.oninput = null;
+  }
+
+  var warningBox = document.getElementById('rpWarningBox');
+  if (warningBox) warningBox.style.display = 'none';
+
+  var saveBtn = document.querySelector('#receivePayModal .btn-pay-save');
+  if (saveBtn) {
+    saveBtn.disabled = false;
+    saveBtn.style.opacity = '1';
+    saveBtn.style.cursor = 'pointer';
+    saveBtn.innerHTML = '<i class="fas fa-floppy-disk"></i> Save Payment';
+  }
+}
+
+
+/* =========================================================
+   ⭐ PRINT INVOICE (A4 Landscape × 2 copies)
+   ========================================================= */
+
+function openPrintInvoiceModal() {
+  var today = new Date().toISOString().split('T')[0];
+
+  document.getElementById('piInvoice').value = '';
+  document.getElementById('piDate').value = today;
+  document.getElementById('piCustomer').value = '';
+  document.getElementById('piShop').value = '';
+  document.getElementById('piAddress').value = '';
+  document.getElementById('piMobile').value = '';
+
+  var tbody = document.getElementById('piTableBody');
+  tbody.innerHTML = '';
+
+  /* ★ ২০টি রো তৈরি */
+  for (var i = 1; i <= 20; i++) {
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td style="text-align:center; font-weight:bold;">' + i + '</td>' +
+      '<td><input type="text" class="pi-name" placeholder=""></td>' +
+      '<td><input type="text" class="pi-color" placeholder=""></td>' +
+      '<td><input type="number" class="pi-qty" step="1" min="0" placeholder=""></td>' +
+      '<td><input type="number" class="pi-rate" step="0.01" min="0" placeholder=""></td>' +
+      '<td class="pi-total" style="text-align:right; font-weight:bold; color:var(--accent); padding:8px;">0.00</td>';
+    tbody.appendChild(tr);
+  }
+
+  tbody.querySelectorAll('.pi-qty, .pi-rate').forEach(function (inp) {
+    inp.addEventListener('input', calculatePITotals);
+  });
+
+  updatePIGrandTotal();
+  document.getElementById('printInvoiceModal').classList.add('show');
+}
+
+function calculatePITotals(e) {
+  var tr = e.target.closest('tr');
+  var qty = parseFloat(tr.querySelector('.pi-qty').value) || 0;
+  var rate = parseFloat(tr.querySelector('.pi-rate').value) || 0;
+  tr.querySelector('.pi-total').innerText = (qty * rate).toFixed(2);
+  updatePIGrandTotal();
+}
+
+function updatePIGrandTotal() {
+  var grand = 0;
+  document.querySelectorAll('#piTableBody .pi-total').forEach(function (td) {
+    grand += parseFloat(td.innerText) || 0;
+  });
+  document.getElementById('piGrandTotal').innerText = grand.toFixed(2);
+}
+
+function closePrintInvoiceModal() {
+  document.getElementById('printInvoiceModal').classList.remove('show');
+}
+
+function printBlankInvoice() {
+  var invoice  = (document.getElementById('piInvoice').value || '').trim();
+  var date     = document.getElementById('piDate').value;
+  var customer = (document.getElementById('piCustomer').value || '').trim();
+  var shop     = (document.getElementById('piShop').value || '').trim();
+  var address  = (document.getElementById('piAddress').value || '').trim();
+  var mobile   = (document.getElementById('piMobile').value || '').trim();
+
+  var items = [];
+  var grandTotal = 0;
+
+  document.querySelectorAll('#piTableBody tr').forEach(function (tr) {
+    var name  = (tr.querySelector('.pi-name').value  || '').trim();
+    var color = (tr.querySelector('.pi-color').value || '').trim();
+    var qty   = parseFloat(tr.querySelector('.pi-qty').value)  || 0;
+    var rate  = parseFloat(tr.querySelector('.pi-rate').value) || 0;
+    var total = qty * rate;
+    grandTotal += total;
+    items.push({ name: name, color: color, qty: qty, rate: rate, total: total });
+  });
+
+  while (items.length < 20) {
+    items.push({ name: '', color: '', qty: '', rate: '', total: '' });
+  }
+  if (items.length > 20) items = items.slice(0, 20);
+
+  var formatDateDisplay = function (d) {
+    if (!d) return '';
+    var parts = d.split('-');
+    if (parts.length === 3) return parts[2] + '-' + parts[1] + '-' + parts[0];
+    return d;
+  };
+
+  var buildCopy = function () {
+    var rowsHTML = items.map(function (r, i) {
+      return '<tr>' +
+        '<td class="c-num">' + (i + 1) + '</td>' +
+        '<td class="c-name">'  + escapeHtml(r.name  || '') + '</td>' +
+        '<td class="c-color">' + escapeHtml(r.color || '') + '</td>' +
+        '<td class="c-qty">'   + (r.qty  ? r.qty  : '') + '</td>' +
+        '<td class="c-rate">'  + (r.rate ? r.rate.toFixed(2) : '') + '</td>' +
+        '<td class="c-total">' + (r.total ? r.total.toFixed(2) : '') + '</td>' +
+      '</tr>';
+    }).join('');
+
+    var totalDisplay = grandTotal > 0
+      ? grandTotal.toFixed(2) + ' টাকা'
+      : '<span class="blank-line bl-long" style="min-width:80px;">&nbsp;</span> টাকা';
+
+    return '<div class="copy">' +
+      '<div class="rpt-header">' +
+        '<h1>মীম ইলেকট্রিক এন্ড হার্ডওয়্যার</h1>' +
+        '<div class="sub">Khalishpur, খুলনা &nbsp;|&nbsp; মোবাইল: 01843-369936, 01849-604530</div>' +
+      '</div>' +
+      '<div class="info-grid">' +
+        '<div class="info-item"><b>ইনভয়েস নম্বর:</b> <span class="fill">' + (invoice ? escapeHtml(invoice) : '') + '</span></div>' +
+        '<div class="info-item"><b>তারিখ:</b> <span class="fill">' + (date ? escapeHtml(formatDateDisplay(date)) : '') + '</span></div>' +
+        '<div class="info-item"><b>গ্রাহকের নাম:</b> <span class="fill">' + (customer ? escapeHtml(customer) : '') + '</span></div>' +
+        '<div class="info-item"><b>দোকান:</b> <span class="fill">' + (shop ? escapeHtml(shop) : '') + '</span></div>' +
+        '<div class="info-item info-full"><b>ঠিকানা:</b> <span class="fill">' + (address ? escapeHtml(address) : '') + '</span></div>' +
+        '<div class="info-item info-full"><b>মোবাইল:</b> <span class="fill">' + (mobile ? escapeHtml(mobile) : '') + '</span></div>' +
+      '</div>' +
+      '<table class="rpt-table">' +
+        '<thead><tr>' +
+          '<th style="width:8%">#</th>' +
+          '<th style="width:42%">পণ্যের নাম</th>' +
+          '<th style="width:12%">রঙ</th>' +
+          '<th style="width:10%">পরিমাণ</th>' +
+          '<th style="width:13%">দর</th>' +
+          '<th style="width:15%">মোট</th>' +
+        '</tr></thead>' +
+        '<tbody>' + rowsHTML + '</tbody>' +
+      '</table>' +
+      '<div class="rpt-footer">' +
+        '<span><b>মোট:</b> ' + totalDisplay + '</span>' +
+        '<span><b>স্বাক্ষর:</b> ___________________</span>' +
+      '</div>' +
+    '</div>';
+  };
+
+  var win = window.open('', '_blank');
+  if (!win) { alert('Please allow popups to print.'); return; }
+
+  win.document.write(
+    '<!DOCTYPE html><html><head><meta charset="UTF-8">' +
+    '<title>Invoice</title>' +
+    '<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700;800&display=swap" rel="stylesheet">' +
+    '<style>' +
+
+    /* ⭐ এখানে মার্জিন ঠিক করা হয়েছে */
+    '@page { size: A4 landscape; margin: 8mm 0.03in 3mm 0.03in; }' +
+
+    '* { box-sizing: border-box; margin: 0; padding: 0; }' +
+    'body { font-family: "Noto Sans Bengali", "Segoe UI", Arial, sans-serif; background: #fff; color: #111; padding: 0; margin: 0; width: 100%; }' +
+
+    /* ⭐ width ১০০% করা হয়েছে যাতে ডান পাশের ফাঁকা জায়গা না থাকে */
+    '.print-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; width: 100%; min-height: 198mm; padding: 0; }' +
+
+    '.copy { border: 1px dashed #c0c0c0; padding: 2mm 3mm; display: flex; flex-direction: column; position: relative; height: 100%; min-height: 195mm; }' +
+
+    '.rpt-header { text-align: center; border-bottom: 2px solid #0b5cab; padding-bottom: 1.5mm; margin-bottom: 2mm; }' +
+    '.rpt-header h1 { font-size: 13pt; color: #0b5cab; margin-bottom: 0.5mm; letter-spacing: 0.3px; }' +
+    '.rpt-header .sub { font-size: 8pt; color: #444; font-weight: 500; }' +
+
+    /* ⭐ ইনফো গ্রিড ও Flexbox স্টাইল */
+    '.info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2.5mm 5mm; font-size: 9pt; margin-bottom: 3mm; padding: 1mm 0; }' +
+    '.info-item { display: flex; align-items: flex-end; white-space: nowrap; width: 100%; }' +
+    '.info-item b { color: #222; margin-right: 2px; font-weight: 600; }' +
+    '.info-item .fill { flex: 1; border-bottom: 1px dotted #333; height: 1.1em; padding-left: 2px; color: #000; }' +
+    '.info-full { grid-column: 1 / 3; }' +
+
+    '.rpt-table { width: 100%; border-collapse: collapse; font-size: 8.5pt; flex: none; table-layout: fixed; }' +
+    '.rpt-table th { background: #0b5cab; color: #fff; padding: 1.5mm 1mm; border: 1px solid #0b5cab; font-size: 8pt; text-transform: uppercase; letter-spacing: 0.3px; }' +
+    '.rpt-table td { border: 1px solid #999; padding: 1.5mm 1mm; height: 6.5mm; }' +
+    '.rpt-table td.c-num { text-align: center; width: 8%; font-weight: 600; color: #666; }' +
+    '.rpt-table td.c-name { width: 42%; }' +
+    '.rpt-table td.c-color { width: 12%; text-align: center; }' +
+    '.rpt-table td.c-qty { width: 10%; text-align: center; }' +
+    '.rpt-table td.c-rate { width: 13%; text-align: right; }' +
+    '.rpt-table td.c-total { width: 15%; text-align: right; font-weight: 600; color: #0b5cab; }' +
+
+    '.rpt-footer { display: flex; justify-content: space-between; margin-top: auto; padding-top: 3mm; font-size: 9.5pt; border-top: 1px dashed #999; }' +
+    '.rpt-footer b { color: #0b5cab; }' +
+
+    '@media print { .copy { border: 1px dashed #ddd; } * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }' +
+    '</style></head><body>' +
+    '<div class="print-wrap">' +
+      buildCopy() +
+      buildCopy() +
+    '</div>' +
+    '<scr' + 'ipt>window.onload = function(){ setTimeout(function(){ window.print(); }, 500); };<\/scr' + 'ipt>' +
+    '</body></html>'
+  );
+  win.document.close();
+}
+
+
+/* =========================================================
+   CUSTOMER STATEMENT — PRINT ALL CUSTOMER RECORDS
+   ⭐ MODIFIED: ৪টি হিসাব আলাদা করে দেখানো হয়েছে
+   ========================================================= */
+function openCustomerStatementModal() {
+  var select = document.getElementById('statementCustomerSelect');
+  select.innerHTML = '<option value="">গ্রাহকের তালিকা লোড হচ্ছে...</option>';
+  document.getElementById('customerStatementModal').classList.add('show');
+  if (!(typeof google !== 'undefined' && google.script)) {
+    select.innerHTML = '<option value="">Google Apps Script সংযোগ পাওয়া যায়নি</option>';
+    return;
+  }
+  google.script.run.withSuccessHandler(function(list) {
+    var customers = list || [];
+    select.innerHTML = '<option value="">-- গ্রাহক নির্বাচন করুন --</option>';
+    customers.forEach(function(c) {
+      if (!c) return;
+      var id = String(c.id || '').trim();
+      if (!id) return;
+      var shop = c.shop || c.shopName || '';
+      var label = [shop || c.name || 'Customer', c.name, c.phone, id].filter(Boolean).join(' — ');
+      var option = document.createElement('option');
+      option.value = id;
+      option.textContent = label;
+      select.appendChild(option);
+    });
+    if (select.options.length === 1) {
+      select.innerHTML = '<option value="">Customers sheet-এ Customer ID/Customers ID সহ গ্রাহক পাওয়া যায়নি</option>';
+    }
+  }).withFailureHandler(function(err) {
+    select.innerHTML = '<option value="">গ্রাহক লোড হয়নি: ' + String(err) + '</option>';
+  }).getCustomersList();
+}
+function closeCustomerStatementModal() {
+  document.getElementById('customerStatementModal').classList.remove('show');
+}
+function printCustomerStatement() {
+  var customerId = document.getElementById('statementCustomerSelect').value;
+  if (!customerId) return alert('আগে একজন গ্রাহক নির্বাচন করুন।');
+  if (!(typeof google !== 'undefined' && google.script)) return alert('এই ফিচারটি Google Apps Script Web App-এ চালু করতে হবে।');
+  var btn = document.querySelector('#customerStatementModal .btn-3d-print');
+  var oldText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+  google.script.run.withSuccessHandler(function(res) {
+    btn.disabled = false; btn.innerHTML = oldText;
+    if (!res || !res.success) return alert('হিসাব লোড করা যায়নি: ' + ((res && res.error) || 'Unknown error'));
+    closeCustomerStatementModal();
+    buildCustomerStatementPrint(res);
+  }).withFailureHandler(function(err) {
+    btn.disabled = false; btn.innerHTML = oldText; alert('Error: ' + err);
+  }).getCustomerStatement(customerId);
+}
+
+/* ⭐⭐ MODIFIED — ৪টি Summary আলাদা করে + লাল/সবুজ/Bold স্টাইল */
+function buildCustomerStatementPrint(data) {
+  var c=data.customer||{}, t=data.totals||{}, invoices=data.invoices||[], payments=data.payments||[];
+  var money=function(v){return '৳ '+(Number(v)||0).toLocaleString('en-BD',{minimumFractionDigits:2,maximumFractionDigits:2});};
+  var invoiceRows=invoices.map(function(inv,i){
+    return '<tr><td>'+(i+1)+'</td><td>'+escapeHtml(inv.date)+'</td><td>'+escapeHtml(inv.invoice)+'</td><td>'+escapeHtml(inv.status)+'</td><td class="num">'+money(inv.total)+'</td><td class="num">'+money(inv.received)+'</td><td class="num">'+money(inv.due)+'</td><td class="num advance-cell">'+(inv.advance>0?money(inv.advance):'—')+'</td></tr>';
+  }).join('');
+  var itemSections=invoices.map(function(inv){
+    var rows=(inv.items||[]).map(function(it,i){
+      return '<tr><td>'+(i+1)+'</td><td>'+escapeHtml(it.product)+'</td><td class="num">'+(Number(it.qty)||0)+'</td><td class="num">'+money(it.rate)+'</td><td class="num">'+money(it.total)+'</td></tr>';
+    }).join('');
+    return '<section class="invoice-detail"><h3>Invoice '+escapeHtml(inv.invoice)+' <small>— '+escapeHtml(inv.date)+'</small></h3><table><thead><tr><th>#</th><th>পণ্যের নাম</th><th>Qty</th><th>দর</th><th>মোট</th></tr></thead><tbody>'+(rows||'<tr><td colspan="5">পণ্যের বিস্তারিত পাওয়া যায়নি</td></tr>')+'</tbody></table></section>';
+  }).join('');
+  var paymentRows=payments.map(function(p,i){
+    return '<tr><td>'+(i+1)+'</td><td>'+escapeHtml(p.date)+'</td><td>'+escapeHtml(p.invoice||'-')+'</td><td>'+escapeHtml(p.method)+'</td><td>'+escapeHtml(p.note)+'</td><td class="num">'+money(p.amount)+'</td></tr>';
+  }).join('');
+  var win=window.open('','_blank');
+  if(!win) return alert('Print window খুলতে Popup allow করুন।');
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Customer Statement</title><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700;800&display=swap" rel="stylesheet"><style>'+
+    '@page{size:A4 portrait;margin:12mm}*{box-sizing:border-box}body{font-family:"Noto Sans Bengali",Arial,sans-serif;color:#172033;font-size:10px;margin:0}header{text-align:center;border-bottom:2px solid #075985;padding-bottom:10px;margin-bottom:14px}header h1{font-size:21px;color:#075985;margin:0 0 4px}header p{margin:2px 0;color:#475569}.customer{display:grid;grid-template-columns:1fr 1fr;gap:5px 18px;padding:10px;background:#f1f5f9;border:1px solid #cbd5e1;margin-bottom:12px;font-size:11px}'+
+    /* ⭐ Final Summary (৪টি হিসাব) */
+    '.final-summary{margin:14px 0;border:2px solid #075985;border-radius:6px;overflow:hidden;break-inside:avoid}.final-summary .fs-head{background:#075985;color:#fff;padding:9px 12px;font-size:13px;text-align:center;letter-spacing:0.6px;font-weight:800;text-transform:uppercase}.fs-table{width:100%;border-collapse:collapse;font-size:12px;margin:0}.fs-table th{background:#e0e7ef;color:#075985;padding:7px 12px;border:1px solid #cbd5e1;text-align:left;font-weight:700}.fs-table th:last-child{text-align:right}.fs-table td{padding:9px 12px;border:1px solid #cbd5e1}.fs-table td.num{text-align:right;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}.fs-table tr.fs-sales td{color:#172033;background:#fff}.fs-table tr.fs-due td{color:#dc2626;font-weight:700;background:#fef2f2}.fs-table tr.fs-adv td{color:#16a34a;font-weight:700;background:#f0fdf4}.fs-table tr.fs-net td{color:#075985;font-weight:800;background:#eff6ff;font-size:13.5px;border-top:2px solid #075985}'+
+    'h2{font-size:14px;color:#075985;margin:16px 0 7px}h3{font-size:11px;margin:12px 0 5px;color:#0f172a}table{width:100%;border-collapse:collapse;margin-bottom:10px}th{background:#075985;color:#fff;font-weight:700}th,td{border:1px solid #cbd5e1;padding:5px 6px;text-align:left}td.num{text-align:right;white-space:nowrap}.advance-cell{color:#0f766e;font-weight:700}.invoice-detail{break-inside:avoid;margin:12px 0}.invoice-detail table{font-size:9px}.muted{color:#64748b}.sign{display:flex;justify-content:space-between;margin-top:35px}.sign span{border-top:1px solid #475569;padding-top:5px;width:28%;text-align:center}@media print{thead{display:table-header-group}tr{break-inside:avoid}.final-summary{break-inside:avoid}.fs-table tr.fs-due td,.fs-table tr.fs-adv td,.fs-table tr.fs-net td{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}</style></head><body>'+
+    '<header><h1>MIM ELECTRIC AND HARDWARE</h1><p>01843 369936, 01849 604530 | Khalishpur, Khulna</p><p><b>Customer Account Statement</b></p></header>'+
+    '<div class="customer"><div><b>দোকান:</b> '+escapeHtml(c.shop)+'</div><div><b>গ্রাহক:</b> '+escapeHtml(c.name)+'</div><div><b>মোবাইল:</b> '+escapeHtml(c.phone)+'</div><div><b>Customer ID:</b> '+escapeHtml(c.id)+'</div><div style="grid-column:1/3"><b>ঠিকানা:</b> '+escapeHtml(c.address)+'</div></div>'+
+    /* ⭐⭐ ৪টি হিসাব: মোট বিক্রয় / Invoice-wise Due (লাল) / Customer Advance (সবুজ) / Net Balance (Bold) */
+    '<div class="final-summary">'+
+      '<div class="fs-head">Final Customer Statement Summary</div>'+
+      '<table class="fs-table">'+
+        '<thead><tr><th>বিবরণ</th><th>টাকা</th></tr></thead>'+
+        '<tbody>'+
+          '<tr class="fs-sales"><td>মোট বিক্রয়</td><td class="num">'+money(t.sales)+'</td></tr>'+
+          '<tr class="fs-due"><td>Invoice-wise Due / বর্তমান বাকি</td><td class="num">'+money(t.due)+'</td></tr>'+
+          '<tr class="fs-adv"><td>Customer Advance</td><td class="num">'+money(t.advance)+'</td></tr>'+
+          '<tr class="fs-net"><td>Advance বাদে Net Balance</td><td class="num">'+money(t.netBalance)+'</td></tr>'+
+        '</tbody>'+
+      '</table>'+
+    '</div>'+
+    '<h2>১. Invoice Summary / ইনভয়েস তালিকা</h2><table><thead><tr><th>#</th><th>তারিখ</th><th>ইনভয়েস</th><th>স্ট্যাটাস</th><th>মোট</th><th>ইনভয়েসে সমন্বিত জমা</th><th>Invoice Due</th><th>Advance</th></tr></thead><tbody>'+(invoiceRows||'<tr><td colspan="8">কোনো ইনভয়েস পাওয়া যায়নি</td></tr>')+'</tbody></table>'+
+    '<h2>২. Product Details / পণ্যের বিবরণ</h2>'+(itemSections||'<p class="muted">কোনো পণ্যের বিবরণ পাওয়া যায়নি।</p>')+
+    '<h2>৩. Receipt History / জমার বিবরণ</h2><table><thead><tr><th>#</th><th>তারিখ</th><th>ইনভয়েস</th><th>পদ্ধতি</th><th>নোট</th><th>জমা</th></tr></thead><tbody>'+(paymentRows||'<tr><td colspan="6">কোনো জমার রেকর্ড পাওয়া যায়নি</td></tr>')+'</tbody></table>'+
+    '<div class="sign"><span>গ্রাহকের স্বাক্ষর</span><span>অনুমোদিত স্বাক্ষর</span><span>প্রস্তুতকারীর স্বাক্ষর</span></div><script>window.onload=function(){setTimeout(function(){window.print();},500)};<\/script></body></html>');
+  win.document.close();
+}
+
+
+/* UTILITY */
+function closePopup() {
+  document.getElementById('editModal').classList.remove('show');
+  document.getElementById('stockSummaryCards').style.display = 'none';
+  currentStockReportData = null;
+  document.getElementById('orderTable').className = 'table-form-3d';
+}
+
+function goToOrderPage() {
+  alert("New Order / Back button functionality preserved.");
+}
+
+function escapeHtml(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+document.querySelectorAll('.modal-overlay').forEach(function(m) {
+  m.addEventListener('click', function(e) {
+    if (e.target === m) m.classList.remove('show');
+  });
+});
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay.show').forEach(function(m) {
+      m.classList.remove('show');
+    });
+    closeReceivePay();
+  }
+});
+
+</script>
+
+</body>
+</html>

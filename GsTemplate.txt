@@ -1,0 +1,35 @@
+function doGet(e) {
+  var page = e.parameter.page || 'dashboard';
+var pageTemplates = {
+  'dashboard': 'index',
+  'inventory': 'inventory',
+  'suppliers': 'suppliers',
+  'customers': 'customers',
+  'purchases': 'purchases',
+  'sales': 'sales',
+  'order': 'order',
+  'expenses': 'expenses',
+  'capital': 'capital',
+  'reports': 'reports',
+  'employee': 'employee',
+  'task': 'task',
+  'users': 'users',
+  'settings': 'settings'
+};
+  var contentTemplate = pageTemplates[page] || 'index';
+  var template = HtmlService.createTemplateFromFile('template');
+  template.contentTemplate = contentTemplate;
+  template.currentPage = page;
+  return template.evaluate()
+    .setTitle('Mim')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+function getScriptUrl() {
+  return ScriptApp.getService().getUrl();
+}

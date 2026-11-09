@@ -1,0 +1,1228 @@
+/**
+ * PURCHASE / SUPPLIER BACKEND
+ * Safe Edit (No Shifting), Partial Payment Support, No Duplicate Payment.
+ * Sheets used: Suppliers, InventoryItems, Products, PurchaseOrders, PurchaseItems, Payments.
+ */
+
+/** Return a named sheet, creating it when missing. */
+function getSheet(name) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(name);
+  if (!sheet) sheet = ss.insertSheet(name);
+  return sheet;
+}
+
+function createAllPurchaseSheets() {
+  ensureSuppliersSheet();
+  ensureInventoryItemsSheet();
+  ensureProductsSheet();
+  ensurePurchaseOrdersSheet();
+  ensurePurchaseItemsSheet();
+  ensureExistingPaymentsSheet_();
+}
+
+function ensureExistingPaymentsSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName('Payments');
+  if (!sh) sh = ss.insertSheet('Payments');
+
+  const baseHeaders = [
+    'Payment ID', 'Supplier ID', 'Supplier Name', 'Date', 'Amount',
+    'Payment Method', 'Reference', 'Note', 'PO ID'
+  ];
+  
+  if (sh.getLastRow() === 0) {
+    sh.getRange(1, 1, 1, baseHeaders.length).setValues([baseHeaders]);
+  } else {
+    const existingWidth = Math.max(sh.getLastColumn(), baseHeaders.length);
+    const current = sh.getRange(1, 1, 1, existingWidth).getDisplayValues()[0];
+    baseHeaders.forEach(function(header, i) {
+      if (!normalizeText(current[i])) sh.getRange(1, i + 1).setValue(header);
+    });
+  }
+
+  // Ensure PO ID header exists correctly
+  const width = Math.max(sh.getLastColumn(), 9);
+  const headers = sh.getRange(1, 1, 1, width).getDisplayValues()[0]
+    .map(function(v) { return normalizeText(v).toLowerCase(); });
+  let poCol = headers.indexOf('po id') + 1;
+  if (!poCol) {
+    poCol = 9;
+    if (poCol > sh.getMaxColumns()) sh.insertColumnsAfter(sh.getMaxColumns(), poCol - sh.getMaxColumns());
+    const existingHeader = normalizeText(sh.getRange(1, poCol).getDisplayValue());
+    if (existingHeader && existingHeader.toLowerCase() !== 'po id') {
+      poCol = width + 1;
+      if (poCol > sh.getMaxColumns()) sh.insertColumnAfter(sh.getMaxColumns());
+    }
+    sh.getRange(1, poCol).setValue('PO ID');
+  }
+  return sh;
+}
+
+function getPaymentColumnMap_(sh) {
+  const headers = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getDisplayValues()[0];
+  const map = {};
+  headers.forEach(function(header, i) {
+    const key = normalizeText(header).toLowerCase();
+    if (key) map[key] = i + 1;
+  });
+  return map;
+}
+
+function generatePurchasePaymentId_() {
+  const sh = ensureExistingPaymentsSheet_();
+  const last = sh.getLastRow();
+  let max = 0;
+  if (last >= 2) sh.getRange(2, 1, last - 1, 1).getDisplayValues().forEach(function(r) {
+    const m = normalizeText(r[0]).match(/(\d+)$/);
+    if (m) max = Math.max(max, Number(m[1]) || 0);
+  });
+  return 'PAY-' + String(max + 1).padStart(4, '0');
+}
+
+function getPurchasePaymentTotals_(poId) {
+  const targetPoId = normalizeText(poId);
+  const sh = ensureExistingPaymentsSheet_();
+  const cols = getPaymentColumnMap_(sh);
+  const poCol = cols['po id'];
+  const amountCol = cols['amount'];
+  if (!poCol || !amountCol || sh.getLastRow() < 2 || !targetPoId) {
+    return { paid: 0, payments: [] };
+  }
+  const values = sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues();
+  const payments = [];
+  let paid = 0;
+  values.forEach(function(row) {
+    if (normalizeText(row[poCol - 1]) !== targetPoId) return;
+    const amount = Number(row[amountCol - 1]) || 0;
+    paid += amount;
+    payments.push({
+      paymentId: row[(cols['payment id'] || 1) - 1] || '',
+      date: row[(cols['date'] || 4) - 1] || '',
+      amount: amount,
+      paymentMethod: row[(cols['payment method'] || 6) - 1] || '',
+      reference: row[(cols['reference'] || 7) - 1] || '',
+      note: row[(cols['note'] || 8) - 1] || ''
+    });
+  });
+  return { paid: paid, payments: payments };
+}
+
+function recordPurchasePayment_(poId, supplierId, supplierName, date, amount, method, reference, note) {
+  const value = Number(amount) || 0;
+  if (value <= 0) return null;
+  const sh = ensureExistingPaymentsSheet_();
+  const cols = getPaymentColumnMap_(sh);
+  const id = generatePurchasePaymentId_();
+  const row = new Array(Math.max(sh.getLastColumn(), 9)).fill('');
+  
+  row[(cols['payment id'] || 1) - 1] = id;
+  row[(cols['supplier id'] || 2) - 1] = normalizeText(supplierId);
+  row[(cols['supplier name'] || 3) - 1] = normalizeText(supplierName);
+  row[(cols['date'] || 4) - 1] = date || new Date();
+  row[(cols['amount'] || 5) - 1] = value;
+  row[(cols['payment method'] || 6) - 1] = normalizeText(method) || 'Cash';
+  row[(cols['reference'] || 7) - 1] = normalizeText(reference);
+  row[(cols['note'] || 8) - 1] = normalizeText(note);
+  
+  // Force PO ID to the correct column
+  const poColIndex = cols['po id'] ? cols['po id'] - 1 : 8;
+  row[poColIndex] = normalizeText(poId);
+  
+  sh.appendRow(row);
+  SpreadsheetApp.flush();
+  return id;
+}
+
+function ensureSuppliersSheet() {
+  const sh = getSheet('Suppliers');
+  setHeadersIfNeeded(sh, [
+    'Supplier ID', 'Supplier Name', 'Supplier Contact', 'Supplier Address',
+    'Total Purchases', 'Total Payments', 'Balance Payable'
+  ]);
+}
+
+function ensureInventoryItemsSheet() {
+  const sh = getSheet('InventoryItems');
+  setHeadersIfNeeded(sh, [
+    'Product Name', 'QTY Purchased', 'QTY Sold', 'Remaining QTY',
+    'Reorder Level', 'Reorder Required'
+  ]);
+}
+
+function ensureProductsSheet() {
+  const sh = getSheet('Products');
+  setHeadersIfNeeded(sh, ['HSN Code', 'Product Name', 'Cost', 'Selling Price', 'Stock', 'Barcode']);
+}
+
+function ensurePurchaseOrdersSheet() {
+  const sh = getSheet('PurchaseOrders');
+  setHeadersIfNeeded(sh, ['PO ID', 'Date', 'Supplier Name', 'Bill No', 'Grand Total']);
+}
+
+function ensurePurchaseItemsSheet() {
+  const sh = getSheet('PurchaseItems');
+  setHeadersIfNeeded(sh, [
+    'PO ID', 'Date', 'Supplier Name', 'Bill No', 'Product Name',
+    'Products details', 'Qty', 'Price', 'Total'
+  ]);
+}
+
+function setHeadersIfNeeded(sheet, headers) {
+  if (sheet.getLastRow() === 0) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    return;
+  }
+  const current = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
+  if (current.join('\u001f') !== headers.join('\u001f')) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  }
+}
+
+function normalizeText(value) {
+  return String(value === null || value === undefined ? '' : value)
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function lowerKey(value) {
+  return normalizeText(value).toLowerCase();
+}
+
+function getSuppliers() {
+  try {
+    ensureSuppliersSheet();
+    const sh = getSheet('Suppliers');
+    const lastRow = sh.getLastRow();
+    if (lastRow < 2) return [];
+
+    const data = sh.getRange(2, 1, lastRow - 1, 7).getValues();
+
+    return data.map(function (row) {
+      const id = normalizeText(row[0]);
+      const name = normalizeText(row[1]);
+      const contact = normalizeText(row[2]);
+      const address = normalizeText(row[3]);
+      const purchases = Number(row[4]) || 0;
+      const payments = Number(row[5]) || 0;
+      const balance = Number(row[6]) || 0;
+
+      return {
+        supplierId: id, supplierID: id, id: id,
+        supplierName: name, suppliername: name, supplier_name: name, supplier: name, name: name,
+        supplierContact: contact, contact: contact,
+        supplierAddress: address, address: address,
+        totalPurchases: purchases, purchases: purchases,
+        totalPayments: payments, payments: payments,
+        balancePayable: balance, balance: balance
+      };
+    }).filter(function (supplier) {
+      return supplier.supplierId !== '';
+    });
+
+  } catch (err) {
+    Logger.log('getSuppliers ERROR: ' + err.stack);
+    return [];
+  }
+}
+
+function getSupplierById(supplierId) {
+  try {
+    ensureSuppliersSheet();
+    const targetId = lowerKey(supplierId);
+    if (!targetId) return null;
+
+    const sh = getSheet('Suppliers');
+    const lastRow = sh.getLastRow();
+    if (lastRow < 2) return null;
+
+    const data = sh.getRange(2, 1, lastRow - 1, 7).getValues();
+    for (let i = 0; i < data.length; i++) {
+      if (lowerKey(data[i][0]) !== targetId) continue;
+
+      const id = normalizeText(data[i][0]);
+      const name = normalizeText(data[i][1]);
+      const contact = normalizeText(data[i][2]);
+      const address = normalizeText(data[i][3]);
+      
+      return {
+        supplierId: id, supplierID: id, id: id,
+        supplierName: name, suppliername: name, supplier_name: name, supplier: name, name: name,
+        supplierContact: contact, contact: contact,
+        supplierAddress: address, address: address
+      };
+    }
+    return null;
+  } catch (err) {
+    Logger.log('getSupplierById ERROR: ' + err.stack);
+    return null;
+  }
+}
+
+function getSupplierNameMap_() {
+  ensureSuppliersSheet();
+  const sh = getSheet('Suppliers');
+  const lastRow = sh.getLastRow();
+  const byName = Object.create(null);
+  const byId = Object.create(null);
+
+  if (lastRow < 2) return { byName: byName, byId: byId };
+
+  const data = sh.getRange(2, 1, lastRow - 1, 7).getValues();
+  data.forEach(function (row) {
+    const id = normalizeText(row[0]);
+    const name = normalizeText(row[1]);
+    if (!name) return;
+    byName[name.toLowerCase()] = name;
+    if (id) byId[id.toLowerCase()] = name;
+  });
+  return { byName: byName, byId: byId };
+}
+
+function buildPurchaseItemSupplierMap_() {
+  ensurePurchaseItemsSheet();
+  const sh = getSheet('PurchaseItems');
+  const lastRow = sh.getLastRow();
+  const result = Object.create(null);
+  if (lastRow < 2) return result;
+
+  const supplierMaps = getSupplierNameMap_();
+  const data = sh.getRange(2, 1, lastRow - 1, 9).getValues();
+
+  data.forEach(function (row) {
+    const poId = normalizeText(row[0]);
+    let supplierValue = normalizeText(row[2]);
+    if (!poId || !supplierValue) return;
+
+    const key = supplierValue.toLowerCase();
+    supplierValue = supplierMaps.byId[key] || supplierMaps.byName[key] || supplierValue;
+    if (!result[poId]) result[poId] = supplierValue;
+  });
+  return result;
+}
+
+function resolveSupplierNameForPO_(poId, existingName, itemMap, supplierMaps) {
+  const cleanPO = normalizeText(poId);
+  const existing = normalizeText(existingName);
+  supplierMaps = supplierMaps || getSupplierNameMap_();
+
+  if (existing) {
+    const key = existing.toLowerCase();
+    return supplierMaps.byId[key] || supplierMaps.byName[key] || existing;
+  }
+
+  itemMap = itemMap || buildPurchaseItemSupplierMap_();
+  const fromItems = normalizeText(itemMap[cleanPO] || '');
+  if (!fromItems) return '';
+
+  const itemKey = fromItems.toLowerCase();
+  return supplierMaps.byId[itemKey] || supplierMaps.byName[itemKey] || fromItems;
+}
+
+function getProductsForPurchase() {
+  ensureProductsSheet();
+  const sh = getSheet('Products');
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+
+  const data = sh.getRange(2, 1, lastRow - 1, 6).getValues();
+  return data.map(function (row) {
+    return {
+      hsn: row[0] || '', id: row[0] || '', name: row[1] || '',
+      cost: Number(row[2]) || 0, price: Number(row[3]) || 0,
+      stock: Number(row[4]) || 0, barcode: row[5] || ''
+    };
+  }).filter(function (product) {
+    return normalizeText(product.name) !== '';
+  });
+}
+
+function getProductIdByName(name) {
+  ensureProductsSheet();
+  const sh = getSheet('Products');
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return '';
+
+  const target = lowerKey(name);
+  const data = sh.getRange(2, 1, lastRow - 1, 6).getValues();
+  for (let i = 0; i < data.length; i++) {
+    if (lowerKey(data[i][1]) === target) return data[i][0] || '';
+  }
+  return '';
+}
+
+function getProductNameById(id) {
+  ensureProductsSheet();
+  const sh = getSheet('Products');
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return '';
+
+  const target = lowerKey(id);
+  const data = sh.getRange(2, 1, lastRow - 1, 6).getValues();
+  for (let i = 0; i < data.length; i++) {
+    if (lowerKey(data[i][0]) === target) return data[i][1] || '';
+  }
+  return '';
+}
+
+function generatePoId() {
+  ensurePurchaseOrdersSheet();
+  const sh = getSheet('PurchaseOrders');
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return 'PO-0001';
+
+  const values = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+  let maxNum = 0;
+  values.forEach(function (row) {
+    const match = normalizeText(row[0]).match(/(\d+)$/);
+    if (match) maxNum = Math.max(maxNum, parseInt(match[1], 10) || 0);
+  });
+  return 'PO-' + String(maxNum + 1).padStart(4, '0');
+}
+
+function getPurchaseOrdersPaginated(searchTerm, page, limit) {
+  try {
+    ensurePurchaseOrdersSheet();
+    ensurePurchaseItemsSheet();
+    ensureSuppliersSheet();
+
+    const poSh = getSheet('PurchaseOrders');
+    const lastRow = poSh.getLastRow();
+    if (lastRow < 2) return { orders: [], totalCount: 0 };
+
+    const supplierMaps = getSupplierNameMap_();
+    const itemSupplierMap = buildPurchaseItemSupplierMap_();
+    const data = poSh.getRange(2, 1, lastRow - 1, 5).getValues();
+
+    const rows = data.map(function (row) {
+      const poId = normalizeText(row[0]);
+      let dateValue = row[1];
+      if (dateValue instanceof Date) {
+        dateValue = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      } else {
+        dateValue = normalizeText(dateValue);
+      }
+
+      const supplierName = resolveSupplierNameForPO_(poId, row[2], itemSupplierMap, supplierMaps);
+      const paymentTotals = getPurchasePaymentTotals_(poId);
+      
+      return {
+        poId: poId,
+        paidAmount: paymentTotals.paid,
+        dueAmount: Math.max(0, (Number(row[4]) || 0) - paymentTotals.paid),
+        date: dateValue,
+        supplierName: supplierName, suppliername: supplierName, supplier_name: supplierName, supplier: supplierName,
+        billNo: row[3] || '',
+        grandTotal: Number(row[4]) || 0
+      };
+    }).filter(function (order) { return order.poId !== ''; });
+
+    const query = normalizeText(searchTerm).toLowerCase();
+    const filtered = query ? rows.filter(function (order) {
+      return String(order.poId).toLowerCase().includes(query) ||
+        String(order.billNo).toLowerCase().includes(query) ||
+        String(order.supplierName).toLowerCase().includes(query);
+    }) : rows;
+
+    const totalCount = filtered.length;
+    const currentPage = Math.max(Number(page) || 1, 1);
+    const pageSize = Math.max(Number(limit) || 8, 1);
+    const start = (currentPage - 1) * pageSize;
+
+    return { orders: filtered.slice(start, start + pageSize), totalCount: totalCount };
+  } catch (err) {
+    Logger.log('getPurchaseOrdersPaginated ERROR: ' + err.stack);
+    return { orders: [], totalCount: 0, error: String(err) };
+  }
+}
+
+function getPurchaseOrderById(poId) {
+  try {
+    ensurePurchaseOrdersSheet();
+    ensurePurchaseItemsSheet();
+    ensureSuppliersSheet();
+
+    const clean = function (value) {
+      return String(value === null || value === undefined ? '' : value)
+        .replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\u00A0/g, ' ')
+        .trim().replace(/\s+/g, ' ');
+    };
+    const key = function (value) {
+      return clean(value).normalize('NFKC').toLowerCase().replace(/[.,]/g, '').replace(/\s+/g, ' ');
+    };
+
+    const targetPoId = clean(poId);
+    if (!targetPoId) return null;
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const poSh = ss.getSheetByName('PurchaseOrders');
+    const itemSh = ss.getSheetByName('PurchaseItems');
+    const supSh = ss.getSheetByName('Suppliers');
+    if (!poSh || !itemSh || !supSh) throw new Error('Required sheets not found.');
+
+    const poLastRow = poSh.getLastRow();
+    if (poLastRow < 2) return null;
+    const poData = poSh.getRange(2, 1, poLastRow - 1, 5).getValues();
+    let poRow = null;
+    for (let i = 0; i < poData.length; i++) {
+      if (key(poData[i][0]) === key(targetPoId)) { poRow = poData[i]; break; }
+    }
+    if (!poRow) return null;
+
+    const supLastRow = supSh.getLastRow();
+    const supData = supLastRow >= 2 ? supSh.getRange(2, 1, supLastRow - 1, 7).getValues() : [];
+    const suppliersById = Object.create(null);
+    const suppliersByName = Object.create(null);
+
+    supData.forEach(function (row) {
+      const id = clean(row[0]);
+      const name = clean(row[1]);
+      if (!id && !name) return;
+      const supplier = {
+        supplierId: id, supplierID: id, supplier_id: id, id: id,
+        supplierName: name, suppliername: name, supplier_name: name, supplier: name, name: name,
+        supplierContact: clean(row[2]), supplierPhone: clean(row[2]), contact: clean(row[2]),
+        supplierAddress: clean(row[3]), supplier_address: clean(row[3]), address: clean(row[3])
+      };
+      if (id) suppliersById[key(id)] = supplier;
+      if (name) suppliersByName[key(name)] = supplier;
+    });
+
+    function findSupplier(value) {
+      const normalized = key(value);
+      if (!normalized) return null;
+      return suppliersById[normalized] || suppliersByName[normalized] || null;
+    }
+
+    const itemLastRow = itemSh.getLastRow();
+    const itemData = itemLastRow >= 2 ? itemSh.getRange(2, 1, itemLastRow - 1, 9).getValues() : [];
+    const orderItems = itemData.filter(function (row) { return key(row[0]) === key(targetPoId); });
+
+    let poSupplierValue = clean(poRow[2]);
+    let supplier = findSupplier(poSupplierValue);
+    if (!supplier) {
+      for (let i = 0; i < orderItems.length; i++) {
+        const matched = findSupplier(orderItems[i][2]);
+        if (matched) { supplier = matched; poSupplierValue = supplier.supplierName; break; }
+      }
+    }
+
+    let dateValue = poRow[1];
+    if (dateValue instanceof Date) {
+      dateValue = Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    } else {
+      dateValue = clean(dateValue);
+    }
+
+    const resolvedSupplierName = supplier ? supplier.supplierName : poSupplierValue;
+    const paymentTotals = getPurchasePaymentTotals_(targetPoId);
+    
+    const po = {
+      paidAmount: paymentTotals.paid,
+      dueAmount: Math.max(0, (Number(poRow[4]) || 0) - paymentTotals.paid),
+      payments: paymentTotals.payments,
+      poId: clean(poRow[0]),
+      date: dateValue,
+      supplierName: resolvedSupplierName, suppliername: resolvedSupplierName, supplier_name: resolvedSupplierName, supplier: resolvedSupplierName,
+      supplierId: supplier ? supplier.supplierId : '',
+      supplierID: supplier ? supplier.supplierId : '', supplier_id: supplier ? supplier.supplierId : '',
+      supplierContact: supplier ? supplier.supplierContact : '',
+      supplierPhone: supplier ? supplier.supplierContact : '', contact: supplier ? supplier.supplierContact : '',
+      supplierAddress: supplier ? supplier.supplierAddress : '',
+      supplier_address: supplier ? supplier.supplierAddress : '', address: supplier ? supplier.supplierAddress : '',
+      billNo: clean(poRow[3]),
+      grandTotal: Number(poRow[4]) || 0,
+      items: []
+    };
+
+    orderItems.forEach(function (row) {
+      const productName = clean(row[4]);
+      if (!productName || productName.toLowerCase() === 'unknown') return;
+      const qtyText = clean(row[6]);
+      const numericQty = parseFloat(qtyText.replace(/,/g, '')) || 0;
+      po.items.push({
+        productId: getProductIdByName(productName),
+        productName: productName,
+        details: clean(row[5]),
+        qty: numericQty,
+        qtyDisplay: qtyText,
+        price: Number(row[7]) || 0,
+        total: Number(row[8]) || 0
+      });
+    });
+
+    return po;
+  } catch (err) {
+    Logger.log('getPurchaseOrderById ERROR: ' + (err.stack || err.message || err));
+    throw new Error('Purchase Order details load failed: ' + err.message);
+  }
+}
+
+
+function createPurchaseOrder(payload) {
+  const lock = LockService.getDocumentLock();
+
+  try {
+    lock.waitLock(30000);
+
+    createAllPurchaseSheets();
+    payload = payload || {};
+
+    // =========================================================
+    // 1. SUPPLIER INFORMATION
+    // =========================================================
+
+    let supplierName = normalizeText(
+      payload.supplierName ||
+      payload.suppliername ||
+      payload.supplier_name ||
+      payload.supplier ||
+      payload.name
+    );
+
+    const supplierId = normalizeText(
+      payload.supplierId ||
+      payload.supplierID ||
+      payload.id
+    );
+
+    if (supplierName) {
+      const supplierMaps = getSupplierNameMap_();
+      const supplierKey = supplierName.toLowerCase();
+
+      supplierName =
+        supplierMaps.byId[supplierKey] ||
+        supplierMaps.byName[supplierKey] ||
+        supplierName;
+    }
+
+    if (!supplierName && supplierId) {
+      const supplier = getSupplierById(supplierId);
+
+      if (supplier) {
+        supplierName = normalizeText(
+          supplier.supplierName ||
+          supplier.suppliername ||
+          supplier.name
+        );
+      }
+    }
+
+    if (!supplierName && supplierId) {
+      const supSh = getSheet('Suppliers');
+      const supLastRow = supSh.getLastRow();
+
+      if (supLastRow >= 2) {
+        const supData = supSh
+          .getRange(2, 1, supLastRow - 1, 7)
+          .getValues();
+
+        for (let i = 0; i < supData.length; i++) {
+          if (
+            lowerKey(supData[i][0]) ===
+            supplierId.toLowerCase()
+          ) {
+            supplierName = normalizeText(supData[i][1]);
+            break;
+          }
+        }
+      }
+    }
+
+    if (!supplierName) {
+      return {
+        success: false,
+        error: 'Could not resolve supplier name. Supplier ID: ' + supplierId
+      };
+    }
+
+    // =========================================================
+    // 2. BASIC INFORMATION
+    // =========================================================
+
+    const poId = normalizeText(payload.poId);
+
+    if (!poId) {
+      return {
+        success: false,
+        error: 'PO ID is required.'
+      };
+    }
+
+    const isEdit =
+      payload.isEdit === true ||
+      String(payload.isEdit).toLowerCase() === 'true';
+
+    const date =
+      payload.date ||
+      Utilities.formatDate(
+        new Date(),
+        Session.getScriptTimeZone(),
+        'yyyy-MM-dd'
+      );
+
+    const billNo = normalizeText(payload.billNo);
+
+    const poSheet = getSheet('PurchaseOrders');
+    const itemSheet = getSheet('PurchaseItems');
+
+    // =========================================================
+    // 3. PREPARE PURCHASE ITEMS
+    // =========================================================
+
+    const newItems = [];
+    let calculatedTotal = 0;
+
+    if (Array.isArray(payload.items)) {
+      payload.items.forEach(function(item) {
+        item = item || {};
+
+        let productName = normalizeText(
+          item.productName || item.name
+        );
+
+        if (!productName && item.productId) {
+          productName = normalizeText(
+            getProductNameById(item.productId)
+          );
+        }
+
+        if (!productName) {
+          productName = 'Unknown';
+        }
+
+        const qty = Number(item.qty) || 0;
+
+        const price = Number(
+          item.cost !== undefined && item.cost !== ''
+            ? item.cost
+            : item.price
+        ) || 0;
+
+        if (qty < 0 || price < 0) {
+          throw new Error(
+            'Invalid quantity or price for product: ' + productName
+          );
+        }
+
+        const total = qty * price;
+
+        calculatedTotal += total;
+
+        newItems.push({
+          productName: productName,
+          details: normalizeText(
+            item.details ||
+            item.productDetails ||
+            ''
+          ),
+          qty: qty,
+          price: price,
+          total: total
+        });
+      });
+    }
+
+    // =========================================================
+    // 4. GRAND TOTAL
+    // =========================================================
+
+    let grandTotal = Number(payload.grandTotal);
+
+    if (!isFinite(grandTotal) || grandTotal === 0) {
+      grandTotal = calculatedTotal;
+    }
+
+    if (!isFinite(grandTotal) || grandTotal < 0) {
+      return {
+        success: false,
+        error: 'Invalid Grand Total.'
+      };
+    }
+
+    // =========================================================
+    // 5. FIND EXISTING PO
+    // =========================================================
+
+    const poData = poSheet.getDataRange().getValues();
+
+    let poRowNumber = -1;
+
+    for (let i = poData.length - 1; i >= 1; i--) {
+      if (normalizeText(poData[i][0]) === poId) {
+        poRowNumber = i + 1;
+        break;
+      }
+    }
+
+    if (isEdit && poRowNumber === -1) {
+      return {
+        success: false,
+        error: 'PO not found for edit: ' + poId
+      };
+    }
+
+    if (!isEdit && poRowNumber !== -1) {
+      return {
+        success: false,
+        error: 'This PO ID already exists: ' + poId
+      };
+    }
+
+    // =========================================================
+    // 6. PAYMENT CALCULATION
+    // =========================================================
+
+    const paymentTotals = getPurchasePaymentTotals_(poId);
+    const alreadyPaid = Number(paymentTotals.paid) || 0;
+    const dueBeforePayment = Math.max(0, grandTotal - alreadyPaid);
+    
+    let paidNow = 0;
+    
+    if (payload.isPaid === true || String(payload.isPaid).toLowerCase() === 'true') {
+        paidNow = dueBeforePayment;
+    } else if (payload.paidNow !== undefined && payload.paidNow !== '') {
+        paidNow = Number(payload.paidNow);
+    } else if (payload.paidAmount !== undefined || payload.paid !== undefined) {
+        const requestedPaid = Number(payload.paidAmount !== undefined ? payload.paidAmount : payload.paid) || 0;
+        paidNow = requestedPaid - alreadyPaid;
+    }
+    
+    if (!Number.isFinite(paidNow) || paidNow < 0) {
+        paidNow = 0;
+    }
+    if (paidNow > dueBeforePayment) {
+        paidNow = dueBeforePayment;
+    }
+
+    // =========================================================
+    // 7. EDIT EXISTING PURCHASE ORDER
+    // =========================================================
+
+    if (isEdit) {
+
+      const itemData = itemSheet.getDataRange().getValues();
+
+      const existingRows = [];
+
+      // Find only this PO's item rows
+      for (let i = 1; i < itemData.length; i++) {
+        if (normalizeText(itemData[i][0]) === poId) {
+
+          existingRows.push(i + 1);
+
+          const oldProductName = normalizeText(
+            itemData[i][4]
+          );
+
+          const oldQty = Number(itemData[i][6]) || 0;
+
+          // Reverse old inventory
+          if (
+            oldProductName &&
+            oldProductName.toLowerCase() !== 'unknown' &&
+            oldQty > 0
+          ) {
+            reverseInventoryOnDelete(
+              oldProductName,
+              oldQty
+            );
+
+            restoreProductStockOnDelete(
+              oldProductName,
+              oldQty
+            );
+          }
+        }
+      }
+
+      // Clear only old rows belonging to this PO.
+      // Never delete rows or shift unrelated data.
+      existingRows.forEach(function(rowNumber) {
+        itemSheet
+          .getRange(rowNumber, 1, 1, 9)
+          .clearContent();
+      });
+
+      // Prepare new item rows
+      const newRows = newItems.map(function(item) {
+        return [
+          poId,
+          date,
+          supplierName,
+          billNo,
+          item.productName,
+          item.details,
+          item.qty,
+          item.price,
+          item.total
+        ];
+      });
+
+      // Append replacement items at the bottom
+      if (newRows.length > 0) {
+        const startRow = itemSheet.getLastRow() + 1;
+
+        itemSheet
+          .getRange(startRow, 1, newRows.length, 9)
+          .setValues(newRows);
+      }
+
+      // Update PO header
+      poSheet
+        .getRange(poRowNumber, 1, 1, 5)
+        .setValues([[
+          poId,
+          date,
+          supplierName,
+          billNo,
+          grandTotal
+        ]]);
+
+      // Apply new inventory
+      newItems.forEach(function(item) {
+        if (
+          item.productName &&
+          item.productName.toLowerCase() !== 'unknown' &&
+          item.qty > 0
+        ) {
+          updateInventoryOnPurchase(
+            item.productName,
+            item.qty
+          );
+
+          updateProductStock(
+            item.productName,
+            item.qty
+          );
+        }
+      });
+
+    } else {
+
+      // =======================================================
+      // 8. CREATE NEW PURCHASE ORDER
+      // =======================================================
+
+      poSheet.appendRow([
+        poId,
+        date,
+        supplierName,
+        billNo,
+        grandTotal
+      ]);
+
+      if (newItems.length > 0) {
+
+        const newRows = newItems.map(function(item) {
+          return [
+            poId,
+            date,
+            supplierName,
+            billNo,
+            item.productName,
+            item.details,
+            item.qty,
+            item.price,
+            item.total
+          ];
+        });
+
+        const startRow = itemSheet.getLastRow() + 1;
+
+        itemSheet
+          .getRange(startRow, 1, newRows.length, 9)
+          .setValues(newRows);
+
+        // Update inventory
+        newItems.forEach(function(item) {
+          if (
+            item.productName &&
+            item.productName.toLowerCase() !== 'unknown' &&
+            item.qty > 0
+          ) {
+            updateInventoryOnPurchase(
+              item.productName,
+              item.qty
+            );
+
+            updateProductStock(
+              item.productName,
+              item.qty
+            );
+          }
+        });
+      }
+    }
+
+    // =========================================================
+    // 9. RECORD NEW PAYMENT
+    // =========================================================
+
+    if (paidNow > 0) {
+
+      recordPurchasePayment_(
+        poId,
+        supplierId,
+        supplierName,
+        date,
+        paidNow,
+        payload.paymentMethod || 'Cash',
+        payload.paymentReference || '',
+        isEdit
+          ? 'Additional payment during PO edit'
+          : 'Initial purchase payment'
+      );
+    }
+
+    // =========================================================
+    // 10. FINAL SUMMARY
+    // =========================================================
+
+    SpreadsheetApp.flush();
+
+    const finalPaid =
+      alreadyPaid + paidNow;
+
+    const finalDue = Math.max(
+      0,
+      grandTotal - finalPaid
+    );
+
+    return {
+      success: true,
+      poId: poId,
+      grandTotal: grandTotal,
+      previousPaid: alreadyPaid,
+      paidNow: paidNow,
+      totalPaid: finalPaid,
+      due: finalDue,
+      paymentStatus:
+        finalDue <= 0
+          ? 'Paid'
+          : finalPaid > 0
+            ? 'Partial'
+            : 'Unpaid',
+      message: isEdit
+        ? 'Purchase Order updated successfully.'
+        : 'Purchase Order created successfully.'
+    };
+
+  } catch (err) {
+
+    Logger.log(
+      'createPurchaseOrder ERROR: ' + err.stack
+    );
+
+    return {
+      success: false,
+      error: String(err)
+    };
+
+  } finally {
+
+    try {
+      lock.releaseLock();
+    } catch (ignored) {}
+
+  }
+}
+
+
+function deletePurchaseOrder(poId, silent) {
+  const lock = LockService.getDocumentLock();
+  try {
+    lock.waitLock(30000);
+    ensurePurchaseOrdersSheet();
+    ensurePurchaseItemsSheet();
+
+    const targetPoId = normalizeText(poId);
+    if (!targetPoId) return { success: false, error: 'PO ID is required.' };
+
+    const poSh = getSheet('PurchaseOrders');
+    const itemSh = getSheet('PurchaseItems');
+    const poData = poSh.getDataRange().getValues();
+    let poRow = -1;
+    for (let i = poData.length - 1; i >= 1; i--) {
+      if (normalizeText(poData[i][0]) === targetPoId) { poRow = i + 1; break; }
+    }
+    if (poRow === -1) return { success: false, error: 'PO not found: ' + targetPoId };
+
+    const itemData = itemSh.getDataRange().getValues();
+    const rowsToClear = [];
+    for (let i = 1; i < itemData.length; i++) {
+      if (normalizeText(itemData[i][0]) !== targetPoId) continue;
+      rowsToClear.push(i + 1);
+
+      if (!silent) {
+        const productName = normalizeText(itemData[i][4]);
+        const qty = Number(itemData[i][6]) || 0;
+        if (productName && productName.toLowerCase() !== 'unknown' && qty > 0) {
+          reverseInventoryOnDelete(productName, qty);
+          restoreProductStockOnDelete(productName, qty);
+        }
+      }
+    }
+
+    rowsToClear.forEach(function (rowNumber) {
+      itemSh.getRange(rowNumber, 1, 1, 9).clearContent();
+    });
+    poSh.getRange(poRow, 1, 1, 5).clearContent();
+    SpreadsheetApp.flush();
+    return { success: true, poId: targetPoId };
+  } catch (err) {
+    Logger.log('deletePurchaseOrder ERROR: ' + err.stack);
+    return { success: false, error: String(err) };
+  } finally {
+    try { lock.releaseLock(); } catch (ignored) {}
+  }
+}
+
+function updateInventoryOnPurchase(productName, qty) {
+  ensureInventoryItemsSheet();
+  const sh = getSheet('InventoryItems');
+  const q = Number(qty) || 0;
+  if (q <= 0) return;
+
+  const targetName = lowerKey(productName);
+  const data = sh.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (lowerKey(data[i][0]) !== targetName) continue;
+    const purchased = (Number(data[i][1]) || 0) + q;
+    const sold = Number(data[i][2]) || 0;
+    const remaining = purchased - sold;
+    const reorderLevel = Number(data[i][4]) || 0;
+    const reorderRequired = remaining <= reorderLevel ? 'YES' : 'NO';
+    sh.getRange(i + 1, 2, 1, 5).setValues([[purchased, sold, remaining, reorderLevel, reorderRequired]]);
+    return;
+  }
+  sh.appendRow([normalizeText(productName), q, 0, q, 0, q <= 0 ? 'YES' : 'NO']);
+}
+
+function reverseInventoryOnDelete(productName, qty) {
+  ensureInventoryItemsSheet();
+  const sh = getSheet('InventoryItems');
+  const q = Number(qty) || 0;
+  if (q <= 0) return;
+
+  const targetName = lowerKey(productName);
+  const data = sh.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (lowerKey(data[i][0]) !== targetName) continue;
+    const purchased = Math.max((Number(data[i][1]) || 0) - q, 0);
+    const sold = Number(data[i][2]) || 0;
+    const remaining = purchased - sold;
+    const reorderLevel = Number(data[i][4]) || 0;
+    const reorderRequired = remaining <= reorderLevel ? 'YES' : 'NO';
+    sh.getRange(i + 1, 2, 1, 5).setValues([[purchased, sold, remaining, reorderLevel, reorderRequired]]);
+    return;
+  }
+}
+
+function updateProductStock(productName, qty) {
+  ensureProductsSheet();
+  const sh = getSheet('Products');
+  const q = Number(qty) || 0;
+  if (q <= 0) return;
+
+  const targetName = lowerKey(productName);
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return;
+  const data = sh.getRange(2, 1, lastRow - 1, 6).getValues();
+  for (let i = 0; i < data.length; i++) {
+    if (lowerKey(data[i][1]) === targetName) {
+      sh.getRange(i + 2, 5).setValue((Number(data[i][4]) || 0) + q);
+      return;
+    }
+  }
+}
+
+function restoreProductStockOnDelete(productName, qty) {
+  ensureProductsSheet();
+  const sh = getSheet('Products');
+  const q = Number(qty) || 0;
+  if (q <= 0) return;
+
+  const targetName = lowerKey(productName);
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return;
+  const data = sh.getRange(2, 1, lastRow - 1, 6).getValues();
+  for (let i = 0; i < data.length; i++) {
+    if (lowerKey(data[i][1]) === targetName) {
+      sh.getRange(i + 2, 5).setValue(Math.max((Number(data[i][4]) || 0) - q, 0));
+      return;
+    }
+  }
+}
+
+function getPurchaseItemsSummary() {
+  try {
+    ensurePurchaseItemsSheet();
+    ensureProductsSheet();
+
+    const prodSh = getSheet('Products');
+    const prodLastRow = prodSh.getLastRow();
+    const productSerialList = [];
+
+    if (prodLastRow >= 2) {
+      const prodData = prodSh.getRange(2, 1, prodLastRow - 1, 6).getValues();
+      let serial = 0;
+      prodData.forEach(function (row) {
+        const hsn = normalizeText(row[0]);
+        const name = normalizeText(row[1]);
+        if (!name) return;
+        serial++;
+        productSerialList.push({ key: name.toLowerCase(), displayName: name, hsn: hsn, serial: serial });
+      });
+    }
+
+    const itemSh = getSheet('PurchaseItems');
+    const lastRow = itemSh.getLastRow();
+    if (lastRow < 2) return [];
+
+    const data = itemSh.getRange(2, 1, lastRow - 1, 9).getValues();
+    const purchaseMap = Object.create(null);
+    data.forEach(function (row) {
+      const rawName = normalizeText(row[4]);
+      if (!rawName || rawName.toLowerCase() === 'unknown') return;
+      const key = rawName.toLowerCase();
+      const qty = Number(row[6]) || 0;
+      const total = Number(row[8]) || 0;
+      if (!purchaseMap[key]) purchaseMap[key] = { productName: rawName, qty: 0, total: 0 };
+      purchaseMap[key].qty += qty;
+      purchaseMap[key].total += total;
+    });
+
+    const result = [];
+    const usedKeys = Object.create(null);
+    productSerialList.forEach(function (product) {
+      const key = product.key;
+      if (usedKeys[key] || !purchaseMap[key]) return;
+      result.push({
+        hsn: product.hsn,
+        productName: purchaseMap[key].productName || product.displayName,
+        qty: purchaseMap[key].qty,
+        total: purchaseMap[key].total
+      });
+      usedKeys[key] = true;
+    });
+
+    Object.keys(purchaseMap).filter(function (key) {
+      return !usedKeys[key];
+    }).map(function (key) {
+      return {
+        hsn: '', productName: purchaseMap[key].productName,
+        qty: purchaseMap[key].qty, total: purchaseMap[key].total
+      };
+    }).sort(function (a, b) {
+      return a.productName.localeCompare(b.productName);
+    }).forEach(function (item) {
+      result.push(item);
+    });
+
+    return result;
+  } catch (err) {
+    Logger.log('getPurchaseItemsSummary ERROR: ' + err.stack);
+    return [];
+  }
+}

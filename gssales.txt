@@ -1,0 +1,1551 @@
+/* =========================================================
+   MIM ERP — GSALES.GS
+   Sales Page Backend
+   ---------------------------------------------------------
+   ★ Sheet Structure অপরিবর্তিত
+   ★ Customers Sheet ম্যানুয়াল (কোড হাত দেয় না)
+   ★ Partial Payment সাপোর্ট
+   ★ Date-to-Date Stock Report
+   ★ SalesDetails-এ Per Unit Profit + Profit অটো হিসাব
+   ========================================================= */
+
+
+/* =========================================================
+   ১. সব শিট ও কলাম তৈরি
+   ========================================================= */
+function createAllRequiredSheets() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  var defs = {
+    'orders': [
+      'Invoice No', 'Date', 'Customer Name', 'Shop Name', 'Mobile',
+      'Product Name', 'Color', 'QTY', 'Rate', 'Total', 'Grand Total', 'Due'
+    ],
+    'SaleOrders': [
+      'SO Date', 'SO ID', 'Customer ID', 'Customer Name', 'Invoice Num',
+      'Total SO Amount', 'Total Received', 'SO Balance', 'Status'
+    ],
+    'SalesDetails': [
+      'SO Date', 'SO ID', 'Customer ID', 'Customer Name', 'Invoice Num',
+      'Item ID', 'Product Name', 'QTY Sold', 'Unit Price',
+      'Total Sales', 'Total Price', 'Per Unit Profit', 'Profit'
+    ],
+    'Customers': [
+      'Customers ID', 'Shop Name', 'Mobile Number', 'Customer Name',
+      'Customer Address', 'Total Sales', 'Total Receipts', 'Balance Receivable'
+    ],
+    'Products': [
+      'HSN Code', 'Product Name', 'Cost', 'Selling Price', 'Stock', 'Barcode'
+    ],
+    'Suppliers': [
+      'Supplier ID', 'Supplier Name', 'Supplier Contact', 'Supplier Address',
+      'Total Purchases', 'Total Payments', 'Balance Payable'
+    ],
+    'PurchaseOrders': [
+      'PO ID', 'Date', 'Supplier Name', 'Bill No', 'Grand Total'
+    ],
+    'PurchaseItems': [
+      'PO ID', 'Date', 'Supplier Name', 'Bill No',
+      'Product Name', 'Products details', 'Qty', 'Price', 'Total'
+    ],
+    'InventoryItems': [
+      'Product Name', 'QTY Purchased', 'QTY Sold', 'Remaining QTY',
+      'Reorder Level', 'Reorder Required'
+    ],
+    'ReceiptTransactions': [
+      'Transaction ID', 'Customer ID', 'Customer Name',
+      'Date', 'Amount', 'Running Balance', 'Note'
+    ],
+    'Capital': [
+      'Date', 'Amount', 'Description', 'Running Balance', 'Payment Method'
+    ],
+    'Expenses': [
+      'ID', 'Date', 'Category', 'Amount', 'Description', 'Payment Method'
+    ],
+    'Payments': [
+      'Payment ID', 'Supplier ID', 'Supplier Name', 'Date',
+      'Amount', 'Payment Method', 'Reference', 'Note'
+    ],
+    'Dashboard Backup': [
+      'Timestamp', 'Total Sales', 'Total Purchases', 'Estimated Profit',
+      'Total Orders', 'Customers', 'Suppliers', 'Products', 'Low Stock'
+    ]
+  };
+
+  Object.keys(defs).forEach(function (name) {
+    var sh = ss.getSheetByName(name);
+    if (!sh) sh = ss.insertSheet(name);
+    if (sh.getLastRow() === 0) sh.appendRow(defs[name]);
+  });
+
+  return { success: true };
+}
+
+
+/* =========================================================
+   ২. HELPERS
+   ========================================================= */
+
+/* ★ Column index — header নাম দিয়ে খুঁজে বের করা */
+function hIdx(head, name) {
+  for (var i = 0; i < head.length; i++) {
+    if (String(head[i]).trim().toLowerCase() === String(name).trim().toLowerCase()) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/* ★ Number parse — ৳, কমা, স্পেস বাদ দিয়ে */
+function num(value) {
+  if (value === null || value === undefined || value === '') return 0;
+  var s = String(value).replace(/[৳$,\s]/g, '').replace(/[()]/g, '');
+  var n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+/* ★ Paid status check */
+function isPaidStatus(status) {
+  var s = String(status || '').trim().toLowerCase();
+  return (s === 'confirmed' || s === 'paid');
+}
+
+/* ★ Date string (yyyy-MM-dd) */
+function formatDateStr(d) {
+  if (!d) return '';
+  if (d instanceof Date) {
+    return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  return String(d).split('T')[0].trim();
+}
+
+
+/* =========================================================
+   ৩. DROPDOWN DATA
+   ========================================================= */
+function getDropdownData() {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var customers = [];
+    var customerSheet = ss.getSheetByName('Customers');
+
+    if (customerSheet && customerSheet.getLastRow() > 1) {
+      var custData = customerSheet.getDataRange().getValues();
+      var idIdx = hIdx(custData[0], 'Customer ID');
+      if (idIdx < 0) idIdx = hIdx(custData[0], 'Customers ID');
+      if (idIdx < 0) idIdx = hIdx(custData[0], 'CustomerID');
+      for (var i = 1; i < custData.length; i++) {
+        if (custData[i][1]) {
+          customers.push({
+            id:      idIdx > -1 ? String(custData[i][idIdx] || '').trim() : '',
+            shop:    String(custData[i][1]).trim(),
+            phone:   custData[i][2] ? String(custData[i][2]).replace(/^'/, '').trim() : '',
+            name:    custData[i][3] ? String(custData[i][3]).trim() : '',
+            address: custData[i][4] ? String(custData[i][4]).trim() : ''
+          });
+        }
+      }
+    }
+
+    var products = [];
+    var productSheet = ss.getSheetByName('Products');
+    if (productSheet && productSheet.getLastRow() > 1) {
+      var prodData = productSheet.getDataRange().getValues();
+      for (var j = 1; j < prodData.length; j++) {
+        if (prodData[j][1]) products.push(String(prodData[j][1]).trim());
+      }
+    }
+
+    return { customers: customers, products: products };
+  } catch (e) {
+    Logger.log('getDropdownData error: ' + e);
+    return { customers: [], products: [] };
+  }
+}
+
+
+/* =========================================================
+   ৪. CUSTOMER LIST (with ID)
+   ========================================================= */
+function getCustomersList() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Customers');
+  if (!sheet || sheet.getLastRow() < 2) return [];
+
+  var data = sheet.getDataRange().getValues();
+  var head = data[0];
+  var idIdx    = hIdx(head, 'Customer ID');
+  if (idIdx < 0) idIdx = hIdx(head, 'Customers ID');
+  if (idIdx < 0) idIdx = hIdx(head, 'CustomerID');
+  var shopIdx  = hIdx(head, 'Shop Name');
+  var phoneIdx = hIdx(head, 'Mobile Number');
+  var nameIdx  = hIdx(head, 'Customer Name');
+  var addrIdx  = hIdx(head, 'Customer Address');
+
+  var customers = [];
+  for (var i = 1; i < data.length; i++) {
+    var shop = shopIdx > -1 ? String(data[i][shopIdx] || '').trim() : '';
+    var name = nameIdx > -1 ? String(data[i][nameIdx] || '').trim() : '';
+    if (shop || name) {
+      customers.push({
+        id:       idIdx > -1 ? String(data[i][idIdx] || '').trim() : '',
+        shopName: shop,
+        phone:    phoneIdx > -1 ? String(data[i][phoneIdx] == null ? '' : data[i][phoneIdx]).replace(/^'/, '') : '',
+        name:     name,
+        address:  addrIdx > -1 ? String(data[i][addrIdx] || '').trim() : ''
+      });
+    }
+  }
+  return customers;
+}
+
+
+/* =========================================================
+   ৫. PRODUCT LIST
+   ========================================================= */
+function getProductsList() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Products');
+  if (!sheet || sheet.getLastRow() < 2) return [];
+
+  var data = sheet.getDataRange().getValues();
+  var products = [];
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][1]) {
+      products.push({
+        name: String(data[i][1]).trim(),
+        rate: num(data[i][3])
+      });
+    }
+  }
+  return products;
+}
+
+/* ★ Products dropdown (HSN সহ) */
+function getProductsWithHSNCode() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Products');
+  if (!sheet || sheet.getLastRow() < 2) return [];
+
+  var data = sheet.getDataRange().getValues();
+  var products = [];
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][1]) {
+      products.push({
+        hsnCode: String(data[i][0] || '').trim(),
+        name: String(data[i][1]).trim(),
+        cost: num(data[i][2]),
+        sellingPrice: num(data[i][3]),
+        stock: num(data[i][4]),
+        barcode: String(data[i][5] || '').trim()
+      });
+    }
+  }
+  return products;
+}
+
+/* ★ Product by name */
+function getProductByName(name) {
+  if (!name) return null;
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Products');
+  if (!sheet || sheet.getLastRow() < 2) return null;
+
+  var data = sheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][1]).trim() === String(name).trim()) {
+      return {
+        hsnCode: String(data[i][0] || '').trim(),
+        name: String(data[i][1]).trim(),
+        cost: num(data[i][2]),
+        sellingPrice: num(data[i][3]),
+        stock: num(data[i][4]),
+        barcode: String(data[i][5] || '').trim()
+      };
+    }
+  }
+  return null;
+}
+
+
+/* =========================================================
+   ৬. SALES DATA — SaleOrders থেকে লোড
+   ========================================================= */
+function getSalesData() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var soSheet = ss.getSheetByName('SaleOrders');
+  if (!soSheet || soSheet.getLastRow() < 2) return [];
+
+  var soData = soSheet.getDataRange().getValues();
+  var h = soData[0];
+  var idxDate    = hIdx(h, 'SO Date');
+  var idxId      = hIdx(h, 'SO ID');
+  var idxCustId  = hIdx(h, 'Customer ID');
+  var idxCustNm  = hIdx(h, 'Customer Name');
+  var idxInv     = hIdx(h, 'Invoice Num');
+  var idxTotal   = hIdx(h, 'Total SO Amount');
+  var idxRec     = hIdx(h, 'Total Received');
+  var idxBal     = hIdx(h, 'SO Balance');
+  var idxStatus  = hIdx(h, 'Status');
+
+  var orders = [];
+  for (var i = 1; i < soData.length; i++) {
+    orders.push({
+      soDate:        formatDateStr(soData[i][idxDate]),
+      soId:          soData[i][idxId],
+      customerId:    soData[i][idxCustId],
+      customerName:  soData[i][idxCustNm],
+      invoiceNum:    soData[i][idxInv],
+      totalAmount:   num(soData[i][idxTotal]),
+      totalReceived: num(soData[i][idxRec]),
+      soBalance:     num(soData[i][idxBal]),
+      status:        soData[i][idxStatus] || 'Pending'
+    });
+  }
+  return orders;
+}
+
+
+/* =========================================================
+   ৭. ALL ORDERS (raw)
+   ========================================================= */
+function getAllOrders() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('orders');
+  if (!sheet || sheet.getLastRow() < 1) return [];
+  return sheet.getDataRange().getValues();
+}
+
+
+/* =========================================================
+   ৮. RECEIPT TRANSACTIONS — ENSURE SHEET
+   ========================================================= */
+function ensureReceiptTransactionsSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('ReceiptTransactions');
+  if (!sh) sh = ss.insertSheet('ReceiptTransactions');
+  if (sh.getLastRow() === 0) {
+    sh.appendRow([
+      'Transaction ID', 'Customer ID', 'Customer Name',
+      'Date', 'Amount', 'Running Balance', 'Note'
+    ]);
+  }
+  return sh;
+}
+
+
+/* =========================================================
+   ৯. RECEIPT TRANSACTION ID
+   ========================================================= */
+function getReceiptTransactionId(invoiceNo) {
+  var clean = String(invoiceNo || '').trim().replace(/[^\w\-]/g, '-');
+  return 'REC-' + clean;
+}
+
+
+/* =========================================================
+   ১০. FULL PAID — RECEIPT TRANSACTION (single)
+   ========================================================= */
+function addReceiptTransaction(invoiceNo, customerId, customerName, dateValue, amount) {
+  if (!invoiceNo) return false;
+  amount = num(amount);
+
+  var sh = ensureReceiptTransactionsSheet();
+  var data = sh.getDataRange().getValues();
+  var head = data[0];
+
+  var idIdx       = hIdx(head, 'Transaction ID');
+  var custIdIdx   = hIdx(head, 'Customer ID');
+  var custNameIdx = hIdx(head, 'Customer Name');
+  var dateIdx     = hIdx(head, 'Date');
+  var amountIdx   = hIdx(head, 'Amount');
+  var noteIdx     = hIdx(head, 'Note');
+
+  var transactionId = getReceiptTransactionId(invoiceNo);
+  var foundRow = -1;
+
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][idIdx]).trim() === String(transactionId).trim()) {
+      foundRow = i + 1;
+      break;
+    }
+  }
+
+  var note = 'Payment for Invoice ' + String(invoiceNo);
+
+  if (foundRow > 0) {
+    sh.getRange(foundRow, custIdIdx + 1).setValue(customerId);
+    sh.getRange(foundRow, custNameIdx + 1).setValue(customerName);
+    sh.getRange(foundRow, dateIdx + 1).setValue(dateValue || new Date());
+    sh.getRange(foundRow, amountIdx + 1).setValue(amount);
+    sh.getRange(foundRow, noteIdx + 1).setValue(note);
+  } else {
+    sh.appendRow([transactionId, customerId, customerName, dateValue || new Date(), amount, 0, note]);
+  }
+
+  rebuildReceiptRunningBalance();
+  return true;
+}
+
+
+/* =========================================================
+   ১১. RECEIPT DELETE
+   ========================================================= */
+function deleteReceiptTransaction(invoiceNo) {
+  if (!invoiceNo) return false;
+
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('ReceiptTransactions');
+  if (!sh || sh.getLastRow() < 2) return true;
+
+  var data = sh.getDataRange().getValues();
+  var idIdx = hIdx(data[0], 'Transaction ID');
+  var targetId = getReceiptTransactionId(invoiceNo);
+
+  for (var i = data.length - 1; i >= 1; i--) {
+    if (String(data[i][idIdx]).trim() === String(targetId).trim()) {
+      sh.deleteRow(i + 1);
+    }
+  }
+
+  rebuildReceiptRunningBalance();
+  return true;
+}
+
+
+/* =========================================================
+   ১২. RECEIPT RUNNING BALANCE — REBUILD
+   ========================================================= */
+function rebuildReceiptRunningBalance() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('ReceiptTransactions');
+  if (!sh || sh.getLastRow() < 2) return;
+
+  var data = sh.getDataRange().getValues();
+  var head = data[0];
+  var custIdIdx  = hIdx(head, 'Customer ID');
+  var amountIdx  = hIdx(head, 'Amount');
+  var runningIdx = hIdx(head, 'Running Balance');
+
+  if (runningIdx < 0) return;
+
+  var balances = {};
+  for (var i = 1; i < data.length; i++) {
+    var custId = String(data[i][custIdIdx] || '').trim();
+    var amount = num(data[i][amountIdx]);
+    if (!balances[custId]) balances[custId] = 0;
+    balances[custId] += amount;
+    sh.getRange(i + 1, runningIdx + 1).setValue(balances[custId]);
+  }
+}
+
+
+/* =========================================================
+   ১৩. STATUS UPDATE — Full Paid (Confirmed)
+   ========================================================= */
+function updateStatus(invoiceNo, newStatus) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('SaleOrders');
+  if (!sheet) return 'Sheet not found';
+
+  var data = sheet.getDataRange().getValues();
+  var head = data[0];
+
+  var invIdx      = hIdx(head, 'Invoice Num');
+  var statusIdx   = hIdx(head, 'Status');
+  var recIdx      = hIdx(head, 'Total Received');
+  var balIdx      = hIdx(head, 'SO Balance');
+  var totIdx      = hIdx(head, 'Total SO Amount');
+  var custIdIdx   = hIdx(head, 'Customer ID');
+  var custNameIdx = hIdx(head, 'Customer Name');
+  var dateIdx     = hIdx(head, 'SO Date');
+
+  if (invIdx < 0 || statusIdx < 0) return 'Column not found';
+
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][invIdx]).trim() === String(invoiceNo).trim()) {
+
+      var oldStatus = String(data[i][statusIdx] || '').trim();
+      var grand     = num(data[i][totIdx]);
+      var oldRec    = num(data[i][recIdx]);
+      var oldBal    = num(data[i][balIdx]);
+
+      var newRec = oldRec;
+      var newBal = oldBal;
+
+      if (isPaidStatus(newStatus)) {
+        newRec = grand;
+        newBal = 0;
+      } else if (isPaidStatus(oldStatus)) {
+        newRec = 0;
+        newBal = grand;
+      }
+
+      sheet.getRange(i + 1, statusIdx + 1).setValue(newStatus);
+      sheet.getRange(i + 1, recIdx + 1).setValue(newRec);
+      sheet.getRange(i + 1, balIdx + 1).setValue(newBal);
+
+      /* ★ Orders sheet-এর Due আপডেট */
+      var ordersSheet = ss.getSheetByName('orders');
+      if (ordersSheet && ordersSheet.getLastRow() > 1) {
+        var od = ordersSheet.getDataRange().getValues();
+        var oInvIdx = hIdx(od[0], 'Invoice No');
+        var oDueIdx = hIdx(od[0], 'Due');
+        for (var k = 1; k < od.length; k++) {
+          if (String(od[k][oInvIdx]).trim() === String(invoiceNo).trim()) {
+            ordersSheet.getRange(k + 1, oDueIdx + 1).setValue(newBal);
+          }
+        }
+      }
+
+      /* ★ Receipt Transaction */
+      var custId   = data[i][custIdIdx];
+      var custName = data[i][custNameIdx];
+
+      if (isPaidStatus(newStatus)) {
+        var receiptDate = data[i][dateIdx] || new Date();
+        addReceiptTransaction(invoiceNo, custId, custName, receiptDate, newRec);
+      } else {
+        deleteReceiptTransaction(invoiceNo);
+      }
+
+      return 'Success';
+    }
+  }
+  return 'Not found';
+}
+
+
+/* =========================================================
+   ১৪. ORDER DELETE (full cleanup)
+   ========================================================= */
+function deleteOrderRecord(invoiceNo) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    /* --- A. SaleOrders --- */
+    var soSheet = ss.getSheetByName('SaleOrders');
+    var soId = null;
+
+    if (soSheet && soSheet.getLastRow() > 1) {
+      var soData = soSheet.getDataRange().getValues();
+      var soHead = soData[0];
+      var soInvIdx = hIdx(soHead, 'Invoice Num');
+      var soIdIdx  = hIdx(soHead, 'SO ID');
+
+      for (var j = soData.length - 1; j >= 1; j--) {
+        if (String(soData[j][soInvIdx]).trim() === String(invoiceNo).trim()) {
+          soId = soData[j][soIdIdx];
+          soSheet.deleteRow(j + 1);
+          break;
+        }
+      }
+    }
+
+    /* --- B. orders --- */
+    var ordersSheet = ss.getSheetByName('orders');
+    if (ordersSheet && ordersSheet.getLastRow() > 1) {
+      var ordData = ordersSheet.getDataRange().getValues();
+      var oInvIdx = hIdx(ordData[0], 'Invoice No');
+      for (var i = ordData.length - 1; i >= 1; i--) {
+        if (String(ordData[i][oInvIdx]).trim() === String(invoiceNo).trim()) {
+          ordersSheet.deleteRow(i + 1);
+        }
+      }
+    }
+
+    /* --- C. SalesDetails + Stock restore --- */
+    var sdSheet = ss.getSheetByName('SalesDetails');
+    var prodSheet = ss.getSheetByName('Products');
+
+    if (sdSheet && soId && sdSheet.getLastRow() > 1) {
+      var sdData = sdSheet.getDataRange().getValues();
+      var sdHead = sdData[0];
+      var sdSoIdIdx  = hIdx(sdHead, 'SO ID');
+      var sdItemIdx  = hIdx(sdHead, 'Product Name');
+      var sdQtyIdx   = hIdx(sdHead, 'QTY Sold');
+
+      var rowsToDel = [];
+
+      for (var k = sdData.length - 1; k >= 1; k--) {
+        if (String(sdData[k][sdSoIdIdx]).trim() === String(soId).trim()) {
+          var prodName = sdData[k][sdItemIdx];
+          var qty = num(sdData[k][sdQtyIdx]);
+
+          /* Stock restore */
+          if (prodSheet && prodSheet.getLastRow() > 1) {
+            var pd = prodSheet.getDataRange().getValues();
+            var pNameIdx  = hIdx(pd[0], 'Product Name');
+            var pStockIdx = hIdx(pd[0], 'Stock');
+            for (var p = 1; p < pd.length; p++) {
+              if (String(pd[p][pNameIdx]).trim() === String(prodName).trim()) {
+                prodSheet.getRange(p + 1, pStockIdx + 1).setValue(num(pd[p][pStockIdx]) + qty);
+                break;
+              }
+            }
+          }
+
+          /* Inventory restore */
+          updateInventoryHelper(prodName, qty, 'revert');
+          rowsToDel.push(k + 1);
+        }
+      }
+
+      for (var r = 0; r < rowsToDel.length; r++) {
+        sdSheet.deleteRow(rowsToDel[r]);
+      }
+    }
+
+    /* --- D. Receipt delete --- */
+    deleteReceiptTransaction(invoiceNo);
+
+    return true;
+  } catch (e) {
+    Logger.log('deleteOrderRecord error: ' + e.message);
+    return false;
+  }
+}
+
+
+/* =========================================================
+   ১৫. UPDATE ORDER DATA (Edit / New)
+   ---------------------------------------------------------
+   ★ Customers: নতুন হলে row, বিদ্যমান হলে Name/Mobile/Address
+     আপডেট। Sales/Receipts/Balance চলবে না (ম্যানুয়াল)।
+   ★ SalesDetails-এ Per Unit Profit + Profit অটো হিসাব।
+   ========================================================= */
+function updateOrderData(invoiceNo, customerInfo, itemsList) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    /* --- ১. পুরনো Status, Customer ID, Date সংরক্ষণ --- */
+    var oldStatus = 'Pending';
+    var oldCustomerId = '';
+    var oldOrderDate = null;
+
+    var oldSoSheet = ss.getSheetByName('SaleOrders');
+    if (oldSoSheet && oldSoSheet.getLastRow() > 1) {
+      var oldData = oldSoSheet.getDataRange().getValues();
+      var oldHead = oldData[0];
+      var oldInvIdx     = hIdx(oldHead, 'Invoice Num');
+      var oldStatusIdx  = hIdx(oldHead, 'Status');
+      var oldCustIdIdx  = hIdx(oldHead, 'Customer ID');
+      var oldDateIdx    = hIdx(oldHead, 'SO Date');
+
+      for (var z = 1; z < oldData.length; z++) {
+        if (String(oldData[z][oldInvIdx]).trim() === String(invoiceNo).trim()) {
+          oldStatus     = String(oldData[z][oldStatusIdx] || 'Pending').trim();
+          oldCustomerId = oldData[z][oldCustIdIdx] || '';
+          oldOrderDate  = oldData[z][oldDateIdx] || null;
+          break;
+        }
+      }
+    }
+
+    /* --- ২. পুরনো অর্ডার ডিলিট --- */
+    var delOk = deleteOrderRecord(invoiceNo);
+    if (!delOk) return 'Error: Could not delete old order';
+
+    /* --- ৩. তারিখ --- */
+    var orderDate = customerInfo.date ? new Date(customerInfo.date) : new Date();
+    if (isNaN(orderDate.getTime())) {
+      orderDate = oldOrderDate instanceof Date ? oldOrderDate : new Date();
+    }
+
+    var shopName     = customerInfo.shop || '';
+    var customerName = customerInfo.name || '';
+    var mobile       = customerInfo.phone || '';
+    var address      = customerInfo.address || '';
+
+    /* --- ৪. Grand Total --- */
+    var grandTotal = 0;
+    itemsList.forEach(function (it) {
+      grandTotal += num(it.qty) * num(it.rate);
+    });
+
+    /* --- ৫. Customer ID নির্ধারণ --- */
+    var custSheet = ss.getSheetByName('Customers');
+    if (!custSheet) {
+      custSheet = ss.insertSheet('Customers');
+      custSheet.appendRow([
+        'Customers ID', 'Shop Name', 'Mobile Number', 'Customer Name',
+        'Customer Address', 'Total Sales', 'Total Receipts', 'Balance Receivable'
+      ]);
+    }
+
+    var custData = custSheet.getDataRange().getValues();
+    var cIdIdx   = hIdx(custData[0], 'Customers ID');
+    var cShopIdx = hIdx(custData[0], 'Shop Name');
+
+    var customerId = oldCustomerId || null;
+
+    if (!customerId) {
+      for (var i = 1; i < custData.length; i++) {
+        if (String(custData[i][cShopIdx]).trim() === String(shopName).trim()) {
+          customerId = custData[i][cIdIdx];
+          break;
+        }
+      }
+    }
+
+    /* --- ৬. নতুন কাস্টমার তৈরি --- */
+    if (!customerId) {
+      var max = 0;
+      for (var x = 1; x < custData.length; x++) {
+        var n = parseInt(String(custData[x][cIdIdx]).replace(/\D/g, ''), 10);
+        if (!isNaN(n) && n > max) max = n;
+      }
+      var next = max + 1;
+      customerId = 'C-' + (next < 10 ? '00' + next : next < 100 ? '0' + next : next);
+
+      custSheet.appendRow([customerId, shopName, mobile, customerName, address, 0, 0, 0]);
+    } else {
+      /* ★ বিদ্যমান কাস্টমার — শুধু Name/Mobile/Address আপডেট */
+      for (var y = 1; y < custData.length; y++) {
+        if (String(custData[y][cIdIdx]).trim() === String(customerId).trim()) {
+          custSheet.getRange(y + 1, 3).setNumberFormat('@');
+          custSheet.getRange(y + 1, 3).setValue(String(mobile));
+          custSheet.getRange(y + 1, 4).setValue(customerName);
+          custSheet.getRange(y + 1, 5).setValue(address);
+          break;
+        }
+      }
+    }
+
+    /* --- ৭. তারিখ string --- */
+    var dateStr = Utilities.formatDate(orderDate, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+    /* --- ৮. orders Sheet --- */
+    var ordersSheet = ss.getSheetByName('orders');
+    if (!ordersSheet) {
+      ordersSheet = ss.insertSheet('orders');
+      ordersSheet.appendRow([
+        'Invoice No', 'Date', 'Customer Name', 'Shop Name', 'Mobile',
+        'Product Name', 'Color', 'QTY', 'Rate', 'Total', 'Grand Total', 'Due'
+      ]);
+    }
+
+    var finalStatus = isPaidStatus(oldStatus) ? oldStatus : 'Pending';
+    var due      = isPaidStatus(finalStatus) ? 0 : grandTotal;
+    var received = isPaidStatus(finalStatus) ? grandTotal : 0;
+
+    for (var j = 0; j < itemsList.length; j++) {
+      var item = itemsList[j];
+      var qty   = num(item.qty);
+      var rate  = num(item.rate);
+      var itemTotal = qty * rate;
+
+      var rowIdx = ordersSheet.getLastRow() + 1;
+      ordersSheet.appendRow([
+        invoiceNo, dateStr, customerName, shopName, mobile,
+        item.name, item.color || '', qty, rate, itemTotal, grandTotal, due
+      ]);
+
+      if (mobile) {
+        var mCell = ordersSheet.getRange(rowIdx, 5);
+        mCell.setNumberFormat('@');
+        mCell.setValue(String(mobile));
+      }
+    }
+
+    /* --- ৯. SaleOrders --- */
+    var soSheet = ss.getSheetByName('SaleOrders');
+    if (!soSheet) {
+      soSheet = ss.insertSheet('SaleOrders');
+      soSheet.appendRow([
+        'SO Date', 'SO ID', 'Customer ID', 'Customer Name', 'Invoice Num',
+        'Total SO Amount', 'Total Received', 'SO Balance', 'Status'
+      ]);
+    }
+
+    var soData = soSheet.getDataRange().getValues();
+    var maxSo = 1000;
+    for (var s = 1; s < soData.length; s++) {
+      var n2 = parseInt(soData[s][1], 10);
+      if (!isNaN(n2) && n2 > maxSo) maxSo = n2;
+    }
+    var newSOId = String(maxSo + 1);
+
+    soSheet.appendRow([
+      dateStr, newSOId, customerId, customerName, invoiceNo,
+      grandTotal, received, due, finalStatus
+    ]);
+
+    /* --- ১০. SalesDetails + Stock + Profit --- */
+    var sdSheet = ss.getSheetByName('SalesDetails');
+    if (!sdSheet) {
+      sdSheet = ss.insertSheet('SalesDetails');
+      sdSheet.appendRow([
+        'SO Date', 'SO ID', 'Customer ID', 'Customer Name', 'Invoice Num',
+        'Item ID', 'Product Name', 'QTY Sold', 'Unit Price',
+        'Total Sales', 'Total Price', 'Per Unit Profit', 'Profit'
+      ]);
+    }
+
+    var prodSheet = ss.getSheetByName('Products');
+
+    /* Product cost map */
+    var productCostMap = {};
+    if (prodSheet && prodSheet.getLastRow() > 1) {
+      var pData = prodSheet.getDataRange().getValues();
+      var pHName = hIdx(pData[0], 'Product Name');
+      var pHCost = hIdx(pData[0], 'Cost');
+      for (var pc = 1; pc < pData.length; pc++) {
+        var pnKey = String(pData[pc][pHName] || '').trim();
+        if (pnKey) productCostMap[pnKey] = num(pData[pc][pHCost]);
+      }
+    }
+
+    for (var k = 0; k < itemsList.length; k++) {
+      var it = itemsList[k];
+      var qty2  = num(it.qty);
+      var rate2 = num(it.rate);
+      var total2 = qty2 * rate2;
+
+      /* ★ Profit হিসাব */
+      var unitCost = productCostMap[String(it.name).trim()] || 0;
+      var perUnitProfit = rate2 - unitCost;
+      var totalProfit = perUnitProfit * qty2;
+
+      sdSheet.appendRow([
+        dateStr, newSOId, customerId, customerName, invoiceNo,
+        'ITEM-' + newSOId + '-' + (k + 1),
+        it.name, qty2, rate2, total2, total2,
+        perUnitProfit, totalProfit
+      ]);
+
+      /* Stock কমানো */
+      if (prodSheet && prodSheet.getLastRow() > 1) {
+        var pd = prodSheet.getDataRange().getValues();
+        var pNameIdx  = hIdx(pd[0], 'Product Name');
+        var pStockIdx = hIdx(pd[0], 'Stock');
+
+        for (var p = 1; p < pd.length; p++) {
+          if (String(pd[p][pNameIdx]).trim() === String(it.name).trim()) {
+            prodSheet.getRange(p + 1, pStockIdx + 1).setValue(num(pd[p][pStockIdx]) - qty2);
+            break;
+          }
+        }
+      }
+
+      /* InventoryItems */
+      updateInventoryHelper(it.name, qty2, 'sale');
+    }
+
+    /* --- ১১. ★ Customers Sheet-এ হাত দেব না (আপনি হাতে করবেন) --- */
+
+    /* --- ১২. Receipt Transaction --- */
+    if (isPaidStatus(finalStatus)) {
+      addReceiptTransaction(invoiceNo, customerId, customerName, orderDate, grandTotal);
+    } else {
+      deleteReceiptTransaction(invoiceNo);
+    }
+
+    return 'Success';
+
+  } catch (e) {
+    Logger.log('updateOrderData error: ' + e.message);
+    return 'Error: ' + e.message;
+  }
+}
+
+
+/* =========================================================
+   ১৬. INVENTORY HELPER
+   ========================================================= */
+function updateInventoryHelper(productName, qty, type) {
+  if (!productName) return;
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('InventoryItems');
+  if (!sheet || sheet.getLastRow() < 2) return;
+
+  var data = sheet.getDataRange().getValues();
+  var prodIdx    = hIdx(data[0], 'Product Name');
+  var soldIdx    = hIdx(data[0], 'QTY Sold');
+  var remIdx     = hIdx(data[0], 'Remaining QTY');
+  var purIdx     = hIdx(data[0], 'QTY Purchased');
+  var reorderIdx = hIdx(data[0], 'Reorder Level');
+  var reqIdx     = hIdx(data[0], 'Reorder Required');
+
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][prodIdx]).trim() === String(productName).trim()) {
+      var currSold     = num(data[i][soldIdx]);
+      var currPur      = num(data[i][purIdx]);
+      var reorderLevel = num(data[i][reorderIdx]);
+
+      var newSold;
+      if (type === 'sale') newSold = currSold + qty;
+      else newSold = currSold - qty;
+
+      if (newSold < 0) newSold = 0;
+      var newRem = currPur - newSold;
+      if (newRem < 0) newRem = 0;
+      var reorderReq = newRem <= reorderLevel ? 'Yes' : 'No';
+
+      sheet.getRange(i + 1, soldIdx + 1).setValue(newSold);
+      sheet.getRange(i + 1, remIdx + 1).setValue(newRem);
+      sheet.getRange(i + 1, reqIdx + 1).setValue(reorderReq);
+      return;
+    }
+  }
+}
+
+
+/* =========================================================
+   ১৭. CUSTOMER BALANCE REBUILD (Optional Manual Tool)
+   ========================================================= */
+function rebuildCustomerBalances() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var custSheet = ss.getSheetByName('Customers');
+  var soSheet = ss.getSheetByName('SaleOrders');
+  if (!custSheet || !soSheet) return false;
+
+  var custData = custSheet.getDataRange().getValues();
+  var soData = soSheet.getDataRange().getValues();
+  if (custData.length < 2) return false;
+
+  var ch = custData[0];
+  var sh = soData[0];
+
+  var cIdIdx    = hIdx(ch, 'Customers ID');
+  var cSalesIdx = hIdx(ch, 'Total Sales');
+  var cRecIdx   = hIdx(ch, 'Total Receipts');
+  var cBalIdx   = hIdx(ch, 'Balance Receivable');
+
+  var sCustIdx  = hIdx(sh, 'Customer ID');
+  var sTotalIdx = hIdx(sh, 'Total SO Amount');
+  var sRecIdx   = hIdx(sh, 'Total Received');
+  var sBalIdx   = hIdx(sh, 'SO Balance');
+
+  var totals = {};
+  for (var i = 1; i < soData.length; i++) {
+    var id = String(soData[i][sCustIdx] || '').trim();
+    if (!id) continue;
+    if (!totals[id]) totals[id] = { sales: 0, receipts: 0, balance: 0 };
+    totals[id].sales    += num(soData[i][sTotalIdx]);
+    totals[id].receipts += num(soData[i][sRecIdx]);
+    totals[id].balance  += num(soData[i][sBalIdx]);
+  }
+
+  for (var c = 1; c < custData.length; c++) {
+    var cid = String(custData[c][cIdIdx] || '').trim();
+    var t = totals[cid] || { sales: 0, receipts: 0, balance: 0 };
+    custSheet.getRange(c + 1, cSalesIdx + 1).setValue(t.sales);
+    custSheet.getRange(c + 1, cRecIdx + 1).setValue(t.receipts);
+    custSheet.getRange(c + 1, cBalIdx + 1).setValue(t.balance);
+  }
+
+  return true;
+}
+
+
+/* =========================================================
+   ১৮. PARTIAL PAYMENT — ADD
+   ========================================================= */
+function addPartialPayment(invoiceNo, amount, method, note) {
+  try {
+    amount = num(amount);
+    if (amount <= 0) return { success: false, error: 'Amount must be > 0' };
+    if (!invoiceNo) return { success: false, error: 'Invoice missing' };
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var soSheet = ss.getSheetByName('SaleOrders');
+    if (!soSheet || soSheet.getLastRow() < 2)
+      return { success: false, error: 'SaleOrders sheet empty' };
+
+    var data = soSheet.getDataRange().getValues();
+    var head = data[0];
+    var invIdx    = hIdx(head, 'Invoice Num');
+    var totIdx    = hIdx(head, 'Total SO Amount');
+    var recIdx    = hIdx(head, 'Total Received');
+    var balIdx    = hIdx(head, 'SO Balance');
+    var statIdx   = hIdx(head, 'Status');
+    var custIdIdx = hIdx(head, 'Customer ID');
+    var custNmIdx = hIdx(head, 'Customer Name');
+    var dateIdx   = hIdx(head, 'SO Date');
+
+    var targetRow = -1;
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][invIdx]).trim() === String(invoiceNo).trim()) {
+        targetRow = i;
+        break;
+      }
+    }
+    if (targetRow < 0) return { success: false, error: 'Invoice not found' };
+
+    var total        = num(data[targetRow][totIdx]);
+    var oldRec       = num(data[targetRow][recIdx]);
+    var customerId   = data[targetRow][custIdIdx];
+    var customerName = data[targetRow][custNmIdx];
+    var soDate       = data[targetRow][dateIdx];
+
+    var newRec = oldRec + amount;
+    var newBal = total - newRec;
+    if (newBal < 0) newBal = 0;
+
+    var status = 'Due';
+    if (newRec > 0 && newRec < total) status = 'Partial';
+    else if (newRec >= total) status = 'Paid';
+
+    /* SaleOrders আপডেট */
+    soSheet.getRange(targetRow + 1, recIdx + 1).setValue(newRec);
+    soSheet.getRange(targetRow + 1, balIdx + 1).setValue(newBal);
+    soSheet.getRange(targetRow + 1, statIdx + 1).setValue(status);
+
+    /* ReceiptTransactions-এ নতুন Row */
+    addPartialReceiptRow(invoiceNo, customerId, customerName, soDate, amount, method, note);
+
+    /* orders sheet-এর Due আপডেট */
+    var ordersSheet = ss.getSheetByName('orders');
+    if (ordersSheet && ordersSheet.getLastRow() > 1) {
+      var od = ordersSheet.getDataRange().getValues();
+      var oInvIdx = hIdx(od[0], 'Invoice No');
+      var oDueIdx = hIdx(od[0], 'Due');
+      for (var k = 1; k < od.length; k++) {
+        if (String(od[k][oInvIdx]).trim() === String(invoiceNo).trim()) {
+          ordersSheet.getRange(k + 1, oDueIdx + 1).setValue(newBal);
+        }
+      }
+    }
+
+    rebuildReceiptRunningBalance();
+
+    return { success: true, newReceived: newRec, newBalance: newBal, status: status };
+  } catch (e) {
+    Logger.log('addPartialPayment error: ' + e.message);
+    return { success: false, error: e.toString() };
+  }
+}
+
+
+/* =========================================================
+   ১৯. PARTIAL RECEIPT ROW — প্রতি পেমেন্টে নতুন Row
+   ========================================================= */
+function addPartialReceiptRow(invoiceNo, customerId, customerName, dateValue, amount, method, note) {
+  var sh = ensureReceiptTransactionsSheet();
+
+  var data = sh.getDataRange().getValues();
+  var head = data[0];
+
+  var idIdx     = hIdx(head, 'Transaction ID');
+  var cidIdx    = hIdx(head, 'Customer ID');
+  var cnmIdx    = hIdx(head, 'Customer Name');
+  var dtIdx     = hIdx(head, 'Date');
+  var amtIdx    = hIdx(head, 'Amount');
+  var runIdx    = hIdx(head, 'Running Balance');
+  var noteIdx   = hIdx(head, 'Note');
+  var methodIdx = hIdx(head, 'Method');
+
+  /* serial হিসাব */
+  var serial = 1;
+  var prefix = 'REC-' + String(invoiceNo).replace(/[^\w\-]/g, '-');
+  for (var i = 1; i < data.length; i++) {
+    var tid = String(data[i][idIdx] || '');
+    if (tid.indexOf(prefix) === 0) serial++;
+  }
+
+  var txnId = prefix + '-' + serial;
+  var fullNote = note || ('Payment for ' + invoiceNo + ' (#' + serial + ')');
+  if (method && methodIdx < 0) fullNote = '[' + method + '] ' + fullNote;
+
+  var newRow = [];
+  for (var c = 0; c < head.length; c++) newRow.push('');
+  newRow[idIdx]   = txnId;
+  newRow[cidIdx]  = customerId;
+  newRow[cnmIdx]  = customerName;
+  newRow[dtIdx]   = dateValue || new Date();
+  newRow[amtIdx]  = amount;
+  newRow[runIdx]  = 0;
+  newRow[noteIdx] = fullNote;
+  if (methodIdx > -1) newRow[methodIdx] = method || 'Cash';
+
+  sh.appendRow(newRow);
+  return true;
+}
+
+
+/* =========================================================
+   ২০. PAYMENTS BY INVOICE
+   ========================================================= */
+function getPaymentsByInvoice(invoiceNo) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('ReceiptTransactions');
+  if (!sh || sh.getLastRow() < 2) return [];
+
+  var data = sh.getDataRange().getValues();
+  var head = data[0];
+  var idIdx   = hIdx(head, 'Transaction ID');
+  var dtIdx   = hIdx(head, 'Date');
+  var amtIdx  = hIdx(head, 'Amount');
+  var noteIdx = hIdx(head, 'Note');
+  var mIdx    = hIdx(head, 'Method');
+
+  var prefix = 'REC-' + String(invoiceNo).replace(/[^\w\-]/g, '-');
+  var out = [];
+
+  for (var i = 1; i < data.length; i++) {
+    var tid = String(data[i][idIdx] || '');
+    if (tid.indexOf(prefix) === 0) {
+      var dt = data[i][dtIdx];
+      if (dt instanceof Date) {
+        dt = Utilities.formatDate(dt, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      } else if (dt) {
+        dt = String(dt).split('T')[0];
+      } else {
+        dt = '';
+      }
+      var noteVal = String(data[i][noteIdx] || '');
+      var methodVal = 'Cash';
+      if (mIdx > -1) {
+        methodVal = String(data[i][mIdx] || 'Cash');
+      } else {
+        var mm = noteVal.match(/^\[([^\]]+)\]/);
+        if (mm) {
+          methodVal = mm[1];
+          noteVal = noteVal.replace(/^\[[^\]]+\]\s*/, '');
+        }
+      }
+      out.push({
+        txnId:  tid,
+        date:   dt,
+        amount: num(data[i][amtIdx]),
+        method: methodVal,
+        note:   noteVal
+      });
+    }
+  }
+  return out;
+}
+
+
+/* =========================================================
+   ২১. METHOD COLUMN (Optional)
+   ========================================================= */
+function addMethodColumnToReceipts() {
+  var sh = ensureReceiptTransactionsSheet();
+  var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  if (hIdx(head, 'Method') < 0) {
+    sh.getRange(1, sh.getLastColumn() + 1).setValue('Method');
+  }
+  return true;
+}
+
+
+/* =========================================================
+   ২২. STOCK REPORT — Advanced (Date-to-Date)
+   ========================================================= */
+function getStockReportAdvanced(fromDate, toDate, filterType, sortBy, sortDir) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ordersSheet = ss.getSheetByName('orders');
+    var prodSheet   = ss.getSheetByName('Products');
+
+    if (!ordersSheet) return { success: false, error: 'orders sheet missing' };
+
+    if (!fromDate) {
+      fromDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    }
+    if (!toDate) toDate = fromDate;
+
+    fromDate = String(fromDate).trim();
+    toDate = String(toDate).trim();
+
+    if (fromDate > toDate) {
+      var tmp = fromDate;
+      fromDate = toDate;
+      toDate = tmp;
+    }
+
+    filterType = String(filterType || 'all').toLowerCase();
+    sortBy = String(sortBy || 'hsn').toLowerCase();
+    sortDir = String(sortDir || 'asc').toLowerCase();
+
+    var ordData = ordersSheet.getDataRange().getValues();
+    var ordHead = ordData[0];
+    var oDateCol  = hIdx(ordHead, 'Date');
+    var oProdCol  = hIdx(ordHead, 'Product Name');
+    var oQtyCol   = hIdx(ordHead, 'QTY');
+    var oTotalCol = hIdx(ordHead, 'Total');
+
+    var soldInRange = {};
+    var soldAfter   = {};
+    var grandTotalInRange = 0;
+
+    for (var i = 1; i < ordData.length; i++) {
+      var rowDate = formatDateStr(ordData[i][oDateCol]);
+      var pName = String(ordData[i][oProdCol] || '').trim();
+      var qty   = num(ordData[i][oQtyCol]);
+      var total = num(ordData[i][oTotalCol]);
+      if (!pName) continue;
+
+      if (rowDate >= fromDate && rowDate <= toDate) {
+        if (!soldInRange[pName]) soldInRange[pName] = { qty: 0, total: 0 };
+        soldInRange[pName].qty   += qty;
+        soldInRange[pName].total += total;
+        grandTotalInRange += total;
+      } else if (rowDate > toDate) {
+        if (!soldAfter[pName]) soldAfter[pName] = 0;
+        soldAfter[pName] += qty;
+      }
+    }
+
+    var stockMap = {};
+    if (prodSheet && prodSheet.getLastRow() > 1) {
+      var prodData = prodSheet.getDataRange().getValues();
+      var prodHead = prodData[0];
+      var pHsnCol   = hIdx(prodHead, 'HSN Code');
+      var pNameCol  = hIdx(prodHead, 'Product Name');
+      var pStockCol = hIdx(prodHead, 'Stock');
+      var pCostCol  = hIdx(prodHead, 'Cost');
+      var pSellCol  = hIdx(prodHead, 'Selling Price');
+      var pBarCol   = hIdx(prodHead, 'Barcode');
+
+      for (var j = 1; j < prodData.length; j++) {
+        var pn = String(prodData[j][pNameCol] || '').trim();
+        if (pn) {
+          stockMap[pn] = {
+            hsn:    pHsnCol > -1   ? String(prodData[j][pHsnCol] || '').trim() : '',
+            stock:  num(prodData[j][pStockCol]),
+            cost:   num(prodData[j][pCostCol]),
+            selling: pSellCol > -1 ? num(prodData[j][pSellCol]) : 0,
+            barcode: pBarCol > -1  ? String(prodData[j][pBarCol] || '').trim() : ''
+          };
+        }
+      }
+    }
+
+    var allProducts = {};
+    Object.keys(stockMap).forEach(function(k) { allProducts[k] = true; });
+    Object.keys(soldInRange).forEach(function(k) { allProducts[k] = true; });
+
+    var items = [];
+    var totalStockQty = 0;
+    var totalStockValue = 0;
+    var totalSoldQty = 0;
+    var totalSoldAmount = 0;
+
+    Object.keys(allProducts).forEach(function(pn) {
+      var soldQty      = soldInRange[pn] ? soldInRange[pn].qty   : 0;
+      var soldAmt      = soldInRange[pn] ? soldInRange[pn].total : 0;
+      var soldAfterQty = soldAfter[pn] || 0;
+      var info         = stockMap[pn] || { hsn:'', stock:0, cost:0, selling:0, barcode:'' };
+      var currentStk   = info.stock;
+      var cost         = info.cost;
+
+      var stockAfter   = currentStk + soldAfterQty;
+      var stockBefore  = stockAfter + soldQty;
+      var stockValue   = stockAfter * cost;
+
+      if (filterType === 'sold' && soldQty <= 0) return;
+      if (filterType === 'instock' && stockAfter <= 0) return;
+      if (filterType === 'outofstock' && stockAfter > 0) return;
+
+      items.push({
+        productName:  pn,
+        hsnCode:      info.hsn,
+        barcode:      info.barcode,
+        soldQty:      soldQty,
+        soldAmount:   soldAmt,
+        stockBefore:  stockBefore,
+        currentStock: stockAfter,
+        stockValue:   stockValue,
+        cost:         cost,
+        sellingPrice: info.selling
+      });
+
+      totalStockQty   += stockAfter;
+      totalStockValue += stockValue;
+      totalSoldQty    += soldQty;
+      totalSoldAmount += soldAmt;
+    });
+
+    items.sort(function(a, b) {
+      var va, vb;
+      switch (sortBy) {
+        case 'name':
+          va = a.productName.toLowerCase();
+          vb = b.productName.toLowerCase();
+          return sortDir === 'desc' ? vb.localeCompare(va) : va.localeCompare(vb);
+
+        case 'stock':
+          va = a.currentStock;
+          vb = b.currentStock;
+          return sortDir === 'desc' ? vb - va : va - vb;
+
+        case 'value':
+          va = a.stockValue;
+          vb = b.stockValue;
+          return sortDir === 'desc' ? vb - va : va - vb;
+
+        case 'sold':
+          va = a.soldQty;
+          vb = b.soldQty;
+          return sortDir === 'desc' ? vb - va : va - vb;
+
+        case 'hsn':
+        default:
+          var ha = String(a.hsnCode || '').trim();
+          var hb = String(b.hsnCode || '').trim();
+          var na = parseFloat(ha.replace(/[^0-9.]/g, '')) || 0;
+          var nb = parseFloat(hb.replace(/[^0-9.]/g, '')) || 0;
+          if (na !== nb) return sortDir === 'desc' ? nb - na : na - nb;
+          return sortDir === 'desc' ? hb.localeCompare(ha) : ha.localeCompare(hb);
+      }
+    });
+
+    return {
+      success: true,
+      fromDate: fromDate,
+      toDate: toDate,
+      filterType: filterType,
+      sortBy: sortBy,
+      sortDir: sortDir,
+      grandTotalInRange: grandTotalInRange,
+      totalSoldQty: totalSoldQty,
+      totalSoldAmount: totalSoldAmount,
+      totalItems: items.length,
+      totalStockQty: totalStockQty,
+      totalStockValue: totalStockValue,
+      items: items
+    };
+
+  } catch (e) {
+    Logger.log('getStockReportAdvanced error: ' + e.message);
+    return { success: false, error: e.toString() };
+  }
+}
+
+
+/* =========================================================
+   ২৩. LEGACY STOCK REPORT (single date) — Optional
+   ========================================================= */
+function getDateSalesStockReport(selectedDate) {
+  return getStockReportAdvanced(selectedDate, selectedDate, 'all', 'hsn', 'asc');
+}
+
+
+/* =========================================================
+   ২৪. ON EDIT — Mobile + Color auto
+   ========================================================= */
+function onEdit(e) {
+  if (!e || !e.range) return;
+  var sh = e.range.getSheet();
+  if (sh.getName() !== 'orders') return;
+  var col = e.range.getColumn();
+
+  /* Mobile column (E) */
+  if (col === 5) {
+    var v = String(e.range.getDisplayValue() || '').replace(/\D/g, '');
+    if (!v) return;
+    if (v.charAt(0) !== '0') v = '0' + v;
+    e.range.setNumberFormat('@');
+    e.range.setValue(v);
+    return;
+  }
+
+  /* Color column (G) */
+  if (col === 7) {
+    var colorMap = {
+      "red": "#FF0000", "yellow": "#FFFF00", "orange": "#FFA500",
+      "black": "#000000", "white": "#FFFFFF", "off white": "#F8F4E3",
+      "cream white": "#FFFDD0", "coffee": "#6F4E37", "thai chocolate": "#7B3F00",
+      "post office red": "#CC0000", "red oxide": "#6E2C00", "golden brown": "#996515",
+      "light gray": "#D3D3D3", "light blue": "#ADD8E6", "l blue": "#ADD8E6",
+      "cng green": "#009A44", "lg green": "#90EE90", "lemon": "#FFF44F",
+      "মালটা": "#FF8C00", "হলুদ": "#FFFF00", "লাল": "#FF0000",
+      "কালো": "#000000", "কাল": "#000000", "টিয়া": "#50C878", "সাদা": "#FFFFFF"
+    };
+    var val = String(e.value || '').trim().toLowerCase();
+    if (colorMap[val]) e.range.setBackground(colorMap[val]);
+    else e.range.setBackground(null);
+  }
+}
+
+
+/* =========================================================
+   ২৫. CUSTOMER STATEMENT — ALL INVOICES + ITEMS + RECEIPTS
+   ========================================================= */
+function getCustomerStatement(customerId) {
+  try {
+    customerId = String(customerId || '').trim();
+    if (!customerId) return { success: false, error: 'Customer নির্বাচন করুন।' };
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var custSh = ss.getSheetByName('Customers');
+    var soSh = ss.getSheetByName('SaleOrders');
+    var sdSh = ss.getSheetByName('SalesDetails');
+    var recSh = ss.getSheetByName('ReceiptTransactions');
+
+    if (!custSh || !soSh) {
+      return { success: false, error: 'Customers অথবা SaleOrders sheet পাওয়া যায়নি।' };
+    }
+
+    function col(head, name) { return hIdx(head, name); }
+    function cell(row, idx) { return idx > -1 ? row[idx] : ''; }
+    function dateText(value) {
+      if (!value) return '';
+      if (value instanceof Date) {
+        return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      }
+      return String(value).split('T')[0];
+    }
+    function safeNumber(value) { return num(value); }
+
+    var cd = custSh.getDataRange().getValues();
+    var ch = cd[0];
+    var cId = col(ch, 'Customer ID');
+    if (cId < 0) cId = col(ch, 'Customers ID');
+    if (cId < 0) cId = col(ch, 'CustomerID');
+    var cShop = col(ch, 'Shop Name');
+    var cPhone = col(ch, 'Mobile Number');
+    var cName = col(ch, 'Customer Name');
+    var cAddress = col(ch, 'Customer Address');
+    var customer = null;
+
+    for (var c = 1; c < cd.length; c++) {
+      if (String(cell(cd[c], cId)).trim() === customerId) {
+        customer = {
+          id: customerId,
+          shop: cell(cd[c], cShop) || '',
+          name: cell(cd[c], cName) || '',
+          phone: String(cell(cd[c], cPhone) || '').replace(/^'/, ''),
+          address: cell(cd[c], cAddress) || ''
+        };
+        break;
+      }
+    }
+    if (!customer) return { success: false, error: 'এই Customer ID পাওয়া যায়নি।' };
+
+    var sod = soSh.getDataRange().getValues();
+    var sh = sod[0];
+    var sDate = col(sh, 'SO Date');
+    var sId = col(sh, 'SO ID');
+    var sCust = col(sh, 'Customer ID');
+    var sName = col(sh, 'Customer Name');
+    var sInv = col(sh, 'Invoice Num');
+    var sTotal = col(sh, 'Total SO Amount');
+    var sReceived = col(sh, 'Total Received');
+    var sBalance = col(sh, 'SO Balance');
+    var sStatus = col(sh, 'Status');
+
+    var detailMap = {};
+    if (sdSh && sdSh.getLastRow() > 1) {
+      var sdd = sdSh.getDataRange().getValues();
+      var dh = sdd[0];
+      var dSo = col(dh, 'SO ID');
+      var dProduct = col(dh, 'Product Name');
+      var dQty = col(dh, 'QTY Sold');
+      var dRate = col(dh, 'Unit Price');
+      var dTotal = col(dh, 'Total Sales');
+      for (var d = 1; d < sdd.length; d++) {
+        var key = String(cell(sdd[d], dSo)).trim();
+        if (!key) continue;
+        if (!detailMap[key]) detailMap[key] = [];
+        detailMap[key].push({
+          product: cell(sdd[d], dProduct) || '',
+          qty: safeNumber(cell(sdd[d], dQty)),
+          rate: safeNumber(cell(sdd[d], dRate)),
+          total: safeNumber(cell(sdd[d], dTotal))
+        });
+      }
+    }
+
+    var invoices = [];
+    var invoiceMap = {};
+    var totalSales = 0;
+    var totalReceived = 0;
+    var totalDue = 0;
+    for (var i = 1; i < sod.length; i++) {
+      if (String(cell(sod[i], sCust)).trim() !== customerId) continue;
+      var invoiceNo = String(cell(sod[i], sInv) || '');
+      var soId = String(cell(sod[i], sId) || '');
+      var invoiceTotal = safeNumber(cell(sod[i], sTotal));
+      // SaleOrders-এর Received-এ invoice-এর মোটের চেয়ে বেশি থাকলে
+      // অতিরিক্ত অংশ Invoice Due কমাবে না; Customer Advance হবে।
+      var rawReceived = Math.max(0, safeNumber(cell(sod[i], sReceived)));
+      var allocatedReceived = Math.min(invoiceTotal, rawReceived);
+      var invoiceDue = Math.max(0, invoiceTotal - rawReceived);
+      var invoiceAdvance = Math.max(0, rawReceived - invoiceTotal);
+      var invoice = {
+        date: dateText(cell(sod[i], sDate)),
+        soId: soId,
+        invoice: invoiceNo,
+        total: invoiceTotal,
+        received: allocatedReceived,
+        rawReceived: rawReceived,
+        due: invoiceDue,
+        advance: invoiceAdvance,
+        status: cell(sod[i], sStatus) || 'Pending',
+        items: detailMap[soId] || []
+      };
+      invoices.push(invoice);
+      invoiceMap[invoiceNo] = invoice;
+      totalSales += invoice.total;
+      totalReceived += rawReceived;
+      totalDue += invoiceDue;
+    }
+
+    var payments = [];
+    if (recSh && recSh.getLastRow() > 1) {
+      var rd = recSh.getDataRange().getValues();
+      var rh = rd[0];
+      var rId = col(rh, 'Transaction ID');
+      var rCust = col(rh, 'Customer ID');
+      var rDate = col(rh, 'Date');
+      var rAmount = col(rh, 'Amount');
+      var rNote = col(rh, 'Note');
+      var rMethod = col(rh, 'Method');
+
+      for (var p = 1; p < rd.length; p++) {
+        if (String(cell(rd[p], rCust)).trim() !== customerId) continue;
+        var txn = String(cell(rd[p], rId) || '');
+        var invoiceRef = '';
+        for (var invKey in invoiceMap) {
+          var prefix = 'REC-' + String(invKey).replace(/[^\w\-]/g, '-');
+          if (txn.indexOf(prefix) === 0) {
+            invoiceRef = invKey;
+            break;
+          }
+        }
+        var note = String(cell(rd[p], rNote) || '');
+        var method = rMethod > -1 ? String(cell(rd[p], rMethod) || 'Cash') : 'Cash';
+        if (rMethod < 0) {
+          var mm = note.match(/^\[([^\]]+)\]/);
+          if (mm) {
+            method = mm[1];
+            note = note.replace(/^\[[^\]]+\]\s*/, '');
+          }
+        }
+        payments.push({
+          transactionId: txn,
+          date: dateText(cell(rd[p], rDate)),
+          invoice: invoiceRef,
+          amount: safeNumber(cell(rd[p], rAmount)),
+          method: method,
+          note: note
+        });
+      }
+    }
+
+    payments.sort(function(a, b) {
+      return String(a.date).localeCompare(String(b.date));
+    });
+    invoices.sort(function(a, b) {
+      return String(a.date).localeCompare(String(b.date));
+    });
+
+    return {
+      success: true,
+      customer: customer,
+      invoices: invoices,
+      payments: payments,
+      totals: {
+        invoices: invoices.length,
+        sales: totalSales,
+        received: totalReceived,
+        due: totalDue,
+        advance: invoices.reduce(function(sum, inv) { return sum + inv.advance; }, 0),
+        netBalance: totalDue - invoices.reduce(function(sum, inv) { return sum + inv.advance; }, 0),
+        paymentRows: payments.length
+      }
+    };
+  } catch (e) {
+    Logger.log('getCustomerStatement error: ' + e.message);
+    return { success: false, error: e.toString() };
+  }
+}

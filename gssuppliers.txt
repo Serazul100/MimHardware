@@ -1,0 +1,529 @@
+// ============================================================
+// MIM ERP - SUPPLIER BACKEND (FINAL WORKING VERSION)
+// ============================================================
+// ⚠️ গুরুত্বপূর্ণ: এই ফাইলের ফাংশনগুলোর নামে অন্য কোনো .gs ফাইলে
+//    ফাংশন থাকলে সেইগুলো ডিলিট করুন, নাহলে পুরোনো ভার্সন override করবে।
+// ============================================================
+
+
+/* ============================================================
+   1) NUMBER HELPER
+   ============================================================ */
+
+function supSafeNumber_(v) {
+  if (v === null || v === undefined || v === '') return 0;
+  const n = Number(v);
+  return isNaN(n) || !isFinite(n) ? 0 : n;
+}
+
+
+/* ============================================================
+   2) SHEET HELPERS
+   ============================================================ */
+
+function supEnsureSupplierSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('Suppliers');
+
+  if (!sheet) {
+    sheet = ss.insertSheet('Suppliers');
+    sheet.appendRow([
+      'Supplier ID',
+      'Supplier Name',
+      'Supplier Contact',
+      'Supplier Address',
+      'Total Purchases',
+      'Total Payments',
+      'Balance Payable'
+    ]);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function supEnsurePaymentsSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('Payments');
+
+  if (!sheet) {
+    sheet = ss.insertSheet('Payments');
+    sheet.appendRow([
+      'Payment ID',
+      'Supplier ID',
+      'Supplier Name',
+      'Date',
+      'Amount',
+      'Payment Method',
+      'Reference',
+      'Note'
+    ]);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+
+/* ============================================================
+   3) ID GENERATORS
+   ============================================================ */
+
+function supGenerateSupplierId() {
+  const sheet = supEnsureSupplierSheet_();
+  const lastRow = sheet.getLastRow();
+  let maxNum = 0;
+
+  if (lastRow >= 2) {
+    const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    ids.forEach(function (row) {
+      const id = String(row[0] || '').trim();
+      if (id.indexOf('S-') === 0) {
+        const num = parseInt(id.substring(2), 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
+      }
+    });
+  }
+  return 'S-' + String(maxNum + 1).padStart(3, '0');
+}
+
+function supGeneratePaymentId_() {
+  const sheet = supEnsurePaymentsSheet_();
+  const lastRow = sheet.getLastRow();
+  let maxNum = 0;
+
+  if (lastRow >= 2) {
+    const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    ids.forEach(function (row) {
+      const id = String(row[0] || '').trim();
+      if (id.indexOf('PAY-') === 0) {
+        const num = parseInt(id.substring(4), 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
+      }
+    });
+  }
+  return 'PAY-' + String(maxNum + 1).padStart(4, '0');
+}
+
+
+/* ============================================================
+   4) GET SUPPLIERS
+   Renamed to getSupplierList() to avoid ANY naming conflict
+   with other .gs files (Purchase.gs etc.).
+   ============================================================ */
+
+function getSupplierList() {
+  try {
+    const sheet = supEnsureSupplierSheet_();
+
+    // Force formulas to recalculate before reading values
+    SpreadsheetApp.flush();
+
+    const lastRow = sheet.getLastRow();
+    Logger.log('[getSupplierList] lastRow=' + lastRow);
+
+    if (lastRow < 2) return [];
+
+    const data = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
+    const list = [];
+
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const id = String(row[0] || '').trim();
+      if (!id) continue;
+
+      const name    = row[1] == null ? '' : String(row[1]).trim();
+      const contact = row[2] == null ? '' : String(row[2]).trim();
+      const address = row[3] == null ? '' : String(row[3]).trim();
+
+      const purchases = supSafeNumber_(row[4]);
+      const payments  = supSafeNumber_(row[5]);
+      const balance   = supSafeNumber_(row[6]);
+
+      list.push({
+        id: id,
+        name: name,
+        contact: contact,
+        address: address,
+        purchases: purchases,
+        payments: payments,
+        balance: balance
+      });
+    }
+
+    Logger.log('[getSupplierList] returning ' + list.length + ' rows');
+    if (list.length > 0) {
+      Logger.log('[getSupplierList] first=' + JSON.stringify(list[0]));
+    }
+
+    return list;
+  } catch (e) {
+    Logger.log('[getSupplierList] ERROR: ' + e);
+    return [];
+  }
+}
+
+/**
+ * Compatibility endpoint — if any other page still calls
+ * supGetSuppliers(), it will now go through here.
+ * ⚠️ If Purchase.gs also defines supGetSuppliers, remove
+ *    the one in Purchase.gs so this one takes over.
+ */
+function supGetSuppliers() {
+  return getSupplierList();
+}
+
+/**
+ * Compatibility endpoint — if any page calls getSuppliers(),
+ * it will now return the same shape as getSupplierList().
+ * ⚠️ If Purchase.gs also defines getSuppliers(), remove the
+ *    one in Purchase.gs so this one takes over.
+ */
+function getSuppliers() {
+  return getSupplierList();
+}
+
+
+/* ============================================================
+   5) SAVE SUPPLIER (ADD / UPDATE)
+   ============================================================ */
+
+function saveSupplierData(payload) {
+  const lock = LockService.getScriptLock();
+
+  try {
+    lock.waitLock(10000);
+
+    const sheet = supEnsureSupplierSheet_();
+    const data  = sheet.getDataRange().getValues();
+
+    const supplierId      = String(payload.supplierId      || '').trim();
+    const supplierName    = String(payload.supplierName    || '').trim();
+    const supplierContact = String(payload.supplierContact || '').trim();
+    const supplierAddress = String(payload.supplierAddress || '').trim();
+    const paymentDelta    = supSafeNumber_(payload.paymentDelta);
+
+    if (!supplierName) {
+      return { success: false, error: 'Supplier Name is required.' };
+    }
+
+    /* -------- Find existing -------- */
+    let existingRow = -1;
+    let existingPayments = 0;
+    let purchases = 0;
+
+    for (let i = 1; i < data.length; i++) {
+      if (supplierId !== '' && String(data[i][0]).trim() === supplierId) {
+        existingRow = i + 1;
+        purchases        = supSafeNumber_(data[i][4]);
+        existingPayments = supSafeNumber_(data[i][5]);
+        break;
+      }
+    }
+
+    /* -------- UPDATE EXISTING -------- */
+    if (existingRow !== -1) {
+      sheet.getRange(existingRow, 2).setValue(supplierName);
+      sheet.getRange(existingRow, 3).setValue(supplierContact);
+      sheet.getRange(existingRow, 4).setValue(supplierAddress);
+
+      if (paymentDelta !== 0) {
+        const newPayments = existingPayments + paymentDelta;
+        if (newPayments < 0) {
+          return {
+            success: false,
+            error: 'Payment adjustment cannot make Total Payments negative.'
+          };
+        }
+
+        sheet.getRange(existingRow, 6).setValue(newPayments);
+        sheet.getRange(existingRow, 7).setValue(purchases - newPayments);
+
+        supCreatePaymentTransaction_({
+          supplierId: supplierId,
+          supplierName: supplierName,
+          amount: paymentDelta
+        });
+      }
+
+      SpreadsheetApp.flush();
+
+      return {
+        success: true,
+        message: 'Supplier updated successfully.',
+        supplierId: supplierId
+      };
+    }
+
+    /* -------- ADD NEW -------- */
+    const newId = supplierId || supGenerateSupplierId();
+
+    if (paymentDelta < 0) {
+      return {
+        success: false,
+        error: 'Negative payment cannot be used for a new supplier.'
+      };
+    }
+
+    const initialPayments = paymentDelta > 0 ? paymentDelta : 0;
+
+    sheet.appendRow([
+      newId,
+      supplierName,
+      supplierContact,
+      supplierAddress,
+      0,
+      initialPayments,
+      -initialPayments
+    ]);
+
+    if (paymentDelta > 0) {
+      supCreatePaymentTransaction_({
+        supplierId: newId,
+        supplierName: supplierName,
+        amount: paymentDelta,
+        note: 'Initial supplier payment adjustment'
+      });
+    }
+
+    SpreadsheetApp.flush();
+
+    return {
+      success: true,
+      message: 'Supplier added successfully.',
+      id: newId,
+      supplierId: newId
+    };
+
+  } catch (e) {
+    Logger.log('[saveSupplierData] ERROR: ' + e);
+    return { success: false, error: e.toString() };
+  } finally {
+    try { lock.releaseLock(); } catch (ignore) {}
+  }
+}
+
+
+/* ============================================================
+   6) PAYMENT TRANSACTIONS
+   ============================================================ */
+
+function supCreatePaymentTransaction_(payload) {
+  try {
+    const sheet = supEnsurePaymentsSheet_();
+    const paymentId = supGeneratePaymentId_();
+
+    sheet.appendRow([
+      paymentId,
+      String(payload.supplierId   || '').trim(),
+      String(payload.supplierName || '').trim(),
+      new Date(),
+      supSafeNumber_(payload.amount),
+      String(payload.paymentMethod || '').trim(),
+      String(payload.reference     || '').trim(),
+      String(payload.note          || '').trim()
+    ]);
+
+    return { success: true, paymentId: paymentId };
+  } catch (e) {
+    Logger.log('[supCreatePaymentTransaction_] ERROR: ' + e);
+    return { success: false, error: e.toString() };
+  }
+}
+
+function supGetPaymentHistory(supplierId) {
+  try {
+    const sheet = supEnsurePaymentsSheet_();
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return [];
+
+    const data = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
+    const result = [];
+
+    for (let i = 0; i < data.length; i++) {
+      if (String(data[i][1] || '').trim() !== String(supplierId || '').trim()) continue;
+
+      let dateValue = data[i][3];
+      let formattedDate = '';
+
+      if (dateValue instanceof Date && !isNaN(dateValue.getTime())) {
+        formattedDate = Utilities.formatDate(
+          dateValue, Session.getScriptTimeZone(), 'dd-MM-yyyy'
+        );
+      } else {
+        formattedDate = String(dateValue || '');
+      }
+
+      result.push({
+        paymentId:     String(data[i][0] || ''),
+        supplierId:    String(data[i][1] || ''),
+        supplierName:  String(data[i][2] || ''),
+        date:          formattedDate,
+        amount:        supSafeNumber_(data[i][4]),
+        paymentMethod: String(data[i][5] || ''),
+        reference:     String(data[i][6] || ''),
+        note:          String(data[i][7] || '')
+      });
+    }
+    return result.reverse();
+  } catch (e) {
+    Logger.log('[supGetPaymentHistory] ERROR: ' + e);
+    return [];
+  }
+}
+
+function supDeletePaymentTransaction(paymentId) {
+  const lock = LockService.getScriptLock();
+
+  try {
+    lock.waitLock(10000);
+
+    const paymentSheet  = supEnsurePaymentsSheet_();
+    const supplierSheet = supEnsureSupplierSheet_();
+
+    const lastRow = paymentSheet.getLastRow();
+    if (lastRow < 2) {
+      return { success: false, error: 'Payment transaction not found.' };
+    }
+
+    const data = paymentSheet.getRange(2, 1, lastRow - 1, 8).getValues();
+
+    let targetRow = -1;
+    let supplierId = '';
+    let amount = 0;
+
+    for (let i = 0; i < data.length; i++) {
+      if (String(data[i][0] || '').trim() === String(paymentId || '').trim()) {
+        targetRow  = i + 2;
+        supplierId = String(data[i][1] || '').trim();
+        amount     = supSafeNumber_(data[i][4]);
+        break;
+      }
+    }
+
+    if (targetRow === -1) {
+      return { success: false, error: 'Payment transaction not found.' };
+    }
+
+    paymentSheet.deleteRow(targetRow);
+
+    const supplierData = supplierSheet.getDataRange().getValues();
+
+    for (let i = 1; i < supplierData.length; i++) {
+      if (String(supplierData[i][0] || '').trim() !== supplierId) continue;
+
+      const rowNumber        = i + 1;
+      const purchases        = supSafeNumber_(supplierData[i][4]);
+      const currentPayments  = supSafeNumber_(supplierData[i][5]);
+      const restoredPayments = currentPayments - amount;
+
+      if (restoredPayments < 0) {
+        return {
+          success: false,
+          error: 'Cannot restore supplier balance — Total Payments would become negative.'
+        };
+      }
+
+      supplierSheet.getRange(rowNumber, 6).setValue(restoredPayments);
+      supplierSheet.getRange(rowNumber, 7).setValue(purchases - restoredPayments);
+
+      SpreadsheetApp.flush();
+      return { success: true, message: 'Payment transaction deleted.' };
+    }
+
+    return { success: false, error: 'Supplier linked to this payment not found.' };
+  } catch (e) {
+    Logger.log('[supDeletePaymentTransaction] ERROR: ' + e);
+    return { success: false, error: e.toString() };
+  } finally {
+    try { lock.releaseLock(); } catch (ignore) {}
+  }
+}
+
+
+/* ============================================================
+   7) DELETE SUPPLIER
+   ============================================================ */
+
+function supDeleteSupplier(id) {
+  try {
+    const sheet = supEnsureSupplierSheet_();
+    const data  = sheet.getDataRange().getValues();
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim() === String(id).trim()) {
+        const purchases = supSafeNumber_(data[i][4]);
+        const payments  = supSafeNumber_(data[i][5]);
+
+        if (purchases !== 0 || payments !== 0) {
+          return {
+            success: false,
+            error: 'Supplier has transaction history and cannot be deleted.'
+          };
+        }
+
+        sheet.deleteRow(i + 1);
+        return { success: true, message: 'Supplier deleted successfully.' };
+      }
+    }
+    return { success: false, error: 'Supplier not found.' };
+  } catch (e) {
+    Logger.log('[supDeleteSupplier] ERROR: ' + e);
+    return { success: false, error: e.toString() };
+  }
+}
+
+
+/* ============================================================
+   8) VERIFY — Run this to confirm which version is active
+   ============================================================ */
+
+function VERIFY_getSupplierList() {
+  const result = getSupplierList();
+
+  Logger.log('Rows: ' + result.length);
+  result.slice(0, 5).forEach(function (r, i) {
+    Logger.log(i + ': ' + r.id + ' | ' + r.name +
+               ' | P=' + r.purchases + ' | Pm=' + r.payments +
+               ' | B=' + r.balance);
+  });
+}
+
+
+/* ============================================================
+   9) DEBUG — Inspect the raw sheet rows
+   ============================================================ */
+
+function DEBUG_supplierRead() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Suppliers');
+  if (!sheet) {
+    Logger.log('❌ "Suppliers" sheet not found');
+    return;
+  }
+
+  const lastRow = sheet.getLastRow();
+  Logger.log('Last Row: ' + lastRow);
+
+  if (lastRow < 2) {
+    Logger.log('❌ No data rows');
+    return;
+  }
+
+  SpreadsheetApp.flush();
+  const data = sheet.getRange(2, 1, Math.min(5, lastRow - 1), 7).getValues();
+
+  data.forEach(function (row, i) {
+    Logger.log('Row ' + (i + 2) + ': A=' + JSON.stringify(row[0]) +
+      ' B=' + JSON.stringify(row[1]) +
+      ' E=' + JSON.stringify(row[4]) +
+      ' F=' + JSON.stringify(row[5]) +
+      ' G=' + JSON.stringify(row[6]));
+  });
+
+  const result = getSupplierList();
+  Logger.log('=== getSupplierList result ===');
+  Logger.log('Rows: ' + result.length);
+  result.slice(0, 5).forEach(function (r, i) {
+    Logger.log(i + ': id=' + r.id + ' name=' + r.name +
+               ' purchases=' + r.purchases + ' payments=' + r.payments +
+               ' balance=' + r.balance);
+  });
+}

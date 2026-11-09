@@ -1,0 +1,68 @@
+// ==================== LOGIN / SESSION SYSTEM (Plain Text) ====================
+
+function createUsersSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('Users');
+  if (sheet) {
+    ss.deleteSheet(sheet);   // remove old sheet
+  }
+  sheet = ss.insertSheet('Users');
+  sheet.appendRow(['Email', 'Password', 'Role', 'Name']);
+  // Default admin – password: admin123 (plain text)
+  sheet.appendRow(['admin@example.com', 'admin123', 'Admin', 'Super Admin']);
+  sheet.getRange(1, 1, 1, 4).setBackground('#1e3a5f').setFontColor('#38bdf8').setFontWeight('bold');
+}
+
+function generateToken() {
+  return Utilities.getUuid();
+}
+
+function createSession(email, role, name) {
+  var token = generateToken();
+  var props = PropertiesService.getScriptProperties();
+  var sessionData = JSON.stringify({
+    email: email,
+    role: role,
+    name: name,
+    expires: Date.now() + 30 * 60 * 1000   // 30 min
+  });
+  props.setProperty('session_' + token, sessionData);
+  return token;
+}
+
+function getSession(token) {
+  if (!token) return null;
+  var props = PropertiesService.getScriptProperties();
+  var data = props.getProperty('session_' + token);
+  if (!data) return null;
+  var session = JSON.parse(data);
+  if (Date.now() > session.expires) {
+    props.deleteProperty('session_' + token);
+    return null;
+  }
+  return session;
+}
+
+function validateLogin(email, password) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('Users');
+  if (!sheet) return { success: false, message: 'Users sheet not found' };
+  var data = sheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    var storedEmail = String(data[i][0]).trim().toLowerCase();
+    var storedPass = String(data[i][1]).trim();
+    if (storedEmail === email.trim().toLowerCase() && storedPass === password) {
+      var role = data[i][2];
+      var name = data[i][3] || email;
+      return { success: true, token: createSession(email, role, name), role: role, name: name };
+    }
+  }
+  return { success: false, message: 'Invalid email or password' };
+}
+
+function logoutUser(token) {
+  if (token) {
+    PropertiesService.getScriptProperties().deleteProperty('session_' + token);
+  }
+  return true;
+}

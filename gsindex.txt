@@ -1,0 +1,1016 @@
+// ============================================================
+// gsindex.gs – MIM ERP Dashboard Frontend
+// Works with gsreports.gs (backend)
+// ✅ Gross Profit আসে SalesDetails এর "Profit" column থেকে
+// ============================================================
+
+// ============================================================
+// SHEET NAMES – must match gsreports.gs constants
+// ============================================================
+
+var DASHBOARD_SHEETS = {
+  SALES: 'SaleOrders',
+  SALES_DETAILS: 'SalesDetails',
+  PURCHASES: 'PurchaseOrders',
+  EXPENSES_PRIMARY: 'Expenses',
+  EXPENSES_ALT: 'Expenses',
+  CUSTOMERS: 'Customers',
+  SUPPLIERS: 'Suppliers',
+  PRODUCTS: 'Products',
+  RECEIPTS: 'ReceiptTransactions',
+  PAYMENTS: 'Payments',
+  CAPITAL: 'Capital'
+};
+
+// ============================================================
+// LOCAL EXPENSE HELPERS
+// ============================================================
+
+function _localDateKey(value) {
+  if (value === null || value === undefined || value === '') return '';
+  if (Object.prototype.toString.call(value) === '[object Date]') {
+    if (isNaN(value.getTime())) return '';
+    return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  var str = String(value).trim();
+  if (!str) return '';
+  var iso = str.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  if (iso) return iso[1] + '-' + ('0' + iso[2]).slice(-2) + '-' + ('0' + iso[3]).slice(-2);
+  var dmy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (dmy) return dmy[3] + '-' + ('0' + dmy[2]).slice(-2) + '-' + ('0' + dmy[1]).slice(-2);
+  var parsed = new Date(str);
+  if (!isNaN(parsed.getTime())) return Utilities.formatDate(parsed, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  return '';
+}
+
+function _localNum(value) {
+  if (value === null || value === undefined || value === '') return 0;
+  if (typeof value === 'number') return isFinite(value) ? value : 0;
+  if (value instanceof Date) return 0;
+  var text = String(value).trim();
+  if (!text) return 0;
+  var negativeByParens = /^\(.*\)$/.test(text);
+  var cleaned = text.replace(/৳/g, '').replace(/,/g, '').replace(/[()]/g, '').replace(/\s/g, '').trim();
+  if (!cleaned) return 0;
+  var parsed = parseFloat(cleaned);
+  if (!isFinite(parsed)) return 0;
+  if (negativeByParens) parsed = -Math.abs(parsed);
+  return parsed;
+}
+
+function _getExpensesTotalLocal(expensesData, fromDate, toDate) {
+  var total = 0;
+  var fromKey = _localDateKey(fromDate);
+  var toKey = _localDateKey(toDate);
+
+  (expensesData || []).forEach(function(row) {
+    var rawDate = _getValue(row, ['Date', 'Expense Date'], '');
+    var dateKey = _localDateKey(rawDate);
+    if (!dateKey) return;
+    if (dateKey < fromKey || dateKey > toKey) return;
+
+    var amount = _localNum(_getValue(row, ['Amount', 'Expense Amount', 'Total'], 0));
+    total += amount;
+  });
+
+  return total;
+}
+
+// ============================================================
+// ✅ NEW: GROSS PROFIT FROM SALESDETAILS "Profit" COLUMN
+// ============================================================
+//
+// কেন এই helper?
+// SalesDetails sheet এর L column ("Profit") ইতিমধ্যেই সঠিক
+// FIFO batch cost ব্যবহার করে profit হিসাব করে রেখেছে।
+// তাই Dashboard, Summary, Charts সব জায়গায় এই helper কল করা হয়।
+//
+// Return: { grossProfit, cogs, sales, qty }
+//
+// ============================================================
+
+function _getGrossProfitFromSalesDetails(salesDetails, fromDate, toDate) {
+  var result = {
+    grossProfit: 0,
+    cogs: 0,
+    sales: 0,
+    qty: 0
+  };
+
+  var fromKey = _localDateKey(fromDate);
+  var toKey = _localDateKey(toDate);
+
+  (salesDetails || []).forEach(function(row) {
+    var dateKey = _localDateKey(_getValue(row, ['Date', 'SO Date'], ''));
+    if (!dateKey) return;
+    if (dateKey < fromKey || dateKey > toKey) return;
+
+    var qty = _num(_getValue(row, ['QTY', 'QTY Sold', 'Quantity'], 0));
+    var rate = _num(_getValue(row, ['Rate', 'Unit Price', 'Selling Price'], 0));
+    var lineSales = _num(_getValue(row, ['Total Sales', 'Line Total', 'Total'], 0));
+    if (lineSales === 0 && qty && rate) lineSales = qty * rate;
+
+    // ✅ L column (Profit) থেকে সরাসরি নিই
+    var lineProfit = _num(_getValue(row, ['Profit'], 0));
+
+    result.grossProfit += lineProfit;
+    result.cogs += (lineSales - lineProfit);
+    result.sales += lineSales;
+    result.qty += qty;
+  });
+
+  return result;
+}
+
+// ============================================================
+// MAIN DASHBOARD
+// ============================================================
+
+function getDashboardData(params) {
+  try {
+    params = params || {};
+    var today = new Date();
+    var fromDate = params.fromDate ? _dateKey(params.fromDate) : _dateKey(new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000));
+    var toDate = params.toDate ? _dateKey(params.toDate) : _dateKey(today);
+    if (!fromDate) fromDate = _dateKey(new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000));
+    if (!toDate) toDate = _dateKey(today);
+    if (fromDate > toDate) {
+      var tmp = fromDate;
+      fromDate = toDate;
+      toDate = tmp;
+    }
+
+    var data = {
+      sales: _getSheetData(DASHBOARD_SHEETS.SALES),
+      salesDetails: _getSheetData(DASHBOARD_SHEETS.SALES_DETAILS),
+      purchases: _getSheetData(DASHBOARD_SHEETS.PURCHASES),
+      expenses: _getExpensesSheetData(),
+      customers: _getSheetData(DASHBOARD_SHEETS.CUSTOMERS),
+      suppliers: _getSheetData(DASHBOARD_SHEETS.SUPPLIERS),
+      products: _getSheetData(DASHBOARD_SHEETS.PRODUCTS),
+      receipts: _getSheetData(DASHBOARD_SHEETS.RECEIPTS),
+      payments: _getSheetData(DASHBOARD_SHEETS.PAYMENTS),
+      capital: _getSheetData(DASHBOARD_SHEETS.CAPITAL)
+    };
+
+    return {
+      status: 'success',
+      data: {
+        dateRange: { fromDate: fromDate, toDate: toDate },
+        kpis: getKPIs(data, fromDate, toDate),
+        charts: getCharts(data, fromDate, toDate),
+        topProducts: getTopSellingProducts(data, fromDate, toDate),
+        lowStock: getLowStockProducts(data),
+        receivables: getReceivables(data),
+        payables: getPayables(data),
+        recentTransactions: getRecentTransactions(data),
+        summary: getSummary(data, fromDate, toDate),
+        inventory: getInventorySummary(data)
+      }
+    };
+  } catch (e) {
+    console.error('Dashboard Error:', e);
+    return { status: 'error', message: e && e.message ? e.message : String(e) };
+  }
+}
+
+// ============================================================
+// SHEET HELPERS
+// ============================================================
+
+function _getSheetData(sheetName) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) return [];
+    var lastRow = sheet.getLastRow();
+    var lastCol = sheet.getLastColumn();
+    if (lastRow < 2 || lastCol < 1) return [];
+    var data = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+    var headers = data[0];
+    var result = [];
+    for (var i = 1; i < data.length; i++) {
+      var row = {};
+      for (var j = 0; j < headers.length; j++) {
+        var h = String(headers[j] == null ? '' : headers[j]).trim();
+        if (h) row[h] = data[i][j];
+      }
+      result.push(row);
+    }
+    return result;
+  } catch (e) {
+    console.error('_getSheetData error [' + sheetName + ']:', e);
+    return [];
+  }
+}
+
+function _getExpensesSheetData() {
+  var data = _getSheetData(DASHBOARD_SHEETS.EXPENSES_PRIMARY);
+  return data.length ? data : _getSheetData(DASHBOARD_SHEETS.EXPENSES_ALT);
+}
+
+function _getValue(row, headers, defaultValue) {
+  if (!row) return defaultValue;
+  headers = headers || [];
+  for (var i = 0; i < headers.length; i++) {
+    var key = headers[i];
+    if (Object.prototype.hasOwnProperty.call(row, key) && row[key] !== '' && row[key] !== null && row[key] !== undefined) return row[key];
+  }
+  return defaultValue;
+}
+
+function _num(value) {
+  if (value === null || value === undefined || value === '') return 0;
+  if (typeof value === 'number') return isFinite(value) ? value : 0;
+  if (value instanceof Date) return 0;
+  var str = String(value).replace(/৳/g, '').replace(/,/g, '').replace(/\s/g, '').trim();
+  if (!str) return 0;
+  var n = parseFloat(str);
+  return isFinite(n) ? n : 0;
+}
+
+function _dateKey(value) {
+  if (value === null || value === undefined || value === '') return '';
+  if (Object.prototype.toString.call(value) === '[object Date]') {
+    if (isNaN(value.getTime())) return '';
+    return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  }
+  var str = String(value).trim();
+  if (!str) return '';
+  var iso = str.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  if (iso) return iso[1] + '-' + ('0' + iso[2]).slice(-2) + '-' + ('0' + iso[3]).slice(-2);
+  var dmy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (dmy) return dmy[3] + '-' + ('0' + dmy[2]).slice(-2) + '-' + ('0' + dmy[1]).slice(-2);
+  var parsed = new Date(str);
+  if (!isNaN(parsed.getTime())) return Utilities.formatDate(parsed, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  return '';
+}
+
+function _inDateRange(value, fromDate, toDate) {
+  var date = _dateKey(value);
+  return !!date && date >= fromDate && date <= toDate;
+}
+
+function _filterDate(rows, headers, fromDate, toDate) {
+  return (rows || []).filter(function(row) {
+    return _inDateRange(_getValue(row, headers, ''), fromDate, toDate);
+  });
+}
+
+function _periodDays(fromDate, toDate) {
+  var from = new Date(fromDate + 'T00:00:00');
+  var to = new Date(toDate + 'T00:00:00');
+  return Math.max(Math.round((to - from) / (24 * 60 * 60 * 1000)) + 1, 1);
+}
+
+function _getPreviousPeriod(fromDate, toDate) {
+  var days = _periodDays(fromDate, toDate);
+  var currentFrom = new Date(fromDate + 'T00:00:00');
+  var previousTo = new Date(currentFrom.getTime() - 24 * 60 * 60 * 1000);
+  var previousFrom = new Date(previousTo.getTime() - (days - 1) * 24 * 60 * 60 * 1000);
+  return { fromDate: _dateKey(previousFrom), toDate: _dateKey(previousTo) };
+}
+
+function _calcChange(current, previous) {
+  current = _num(current);
+  previous = _num(previous);
+  if (previous === 0) return current === 0 ? 0 : 100;
+  return ((current - previous) / Math.abs(previous)) * 100;
+}
+
+// ============================================================
+// PRODUCT / SALES HELPERS (Backward compatible – kept for TopProducts)
+// ============================================================
+
+function _getProductCostMap(products) {
+  var map = {};
+  (products || []).forEach(function(product) {
+    var name = _getValue(product, ['Product Name', 'Item Name', 'Product'], '');
+    if (!name) return;
+    map[String(name).trim().toLowerCase()] = _num(_getValue(product, ['Cost', 'Purchase Price', 'Buying Price'], 0));
+  });
+  return map;
+}
+
+// (kept for backward compatibility, but profit আসে Profit column থেকে)
+function _getSalesDetailMetrics(salesDetails, products, fromDate, toDate) {
+  var profitData = _getGrossProfitFromSalesDetails(salesDetails, fromDate, toDate);
+  return {
+    sales: profitData.sales,
+    cogs: profitData.cogs,
+    grossProfit: profitData.grossProfit,
+    qty: profitData.qty
+  };
+}
+
+// ============================================================
+// CAPITAL
+// ============================================================
+
+function _getCapitalMetrics(rows) {
+  var capitalAdded = 0;
+  var capitalWithdraw = 0;
+
+  (rows || []).forEach(function(row) {
+    var amount = _num(_getValue(row, ['Amount'], 0));
+    var type = String(_getValue(row, ['Type'], '')).toLowerCase().trim();
+    var description = String(_getValue(row, ['Description', 'Note'], '')).toLowerCase().trim();
+    var isWithdraw = type.indexOf('withdraw') !== -1 || description.indexOf('withdraw') !== -1 || description.indexOf('withdrawal') !== -1 || amount < 0;
+
+    if (isWithdraw) capitalWithdraw += Math.abs(amount);
+    else capitalAdded += Math.abs(amount);
+  });
+
+  return { capitalAdded: capitalAdded, capitalWithdraw: capitalWithdraw };
+}
+
+// ============================================================
+// ALL-TIME CASH
+// ============================================================
+
+function _getAllTimeCashMetrics(data) {
+  var totalReceipts = (data.receipts || []).reduce(function(sum, row) {
+    return sum + _num(_getValue(row, ['Amount'], 0));
+  }, 0);
+
+  var totalPayments = (data.payments || []).reduce(function(sum, row) {
+    return sum + _num(_getValue(row, ['Amount'], 0));
+  }, 0);
+
+  var totalExpenses = (data.expenses || []).reduce(function(sum, row) {
+    return sum + _num(_getValue(row, ['Amount'], 0));
+  }, 0);
+
+  var cap = _getCapitalMetrics(data.capital);
+  var openingCash = 0;
+  var cashInHand = openingCash + totalReceipts + cap.capitalAdded - totalPayments - totalExpenses - cap.capitalWithdraw;
+
+  return {
+    openingCash: openingCash,
+    totalReceipts: totalReceipts,
+    totalPayments: totalPayments,
+    totalExpenses: totalExpenses,
+    capitalAdded: cap.capitalAdded,
+    capitalWithdraw: cap.capitalWithdraw,
+    cashInHand: cashInHand
+  };
+}
+
+// ============================================================
+// KPI  ✅ Uses SalesDetails "Profit" column for Gross Profit
+// ============================================================
+
+function getKPIs(data, fromDate, toDate) {
+  var sales = _filterDate(data.sales, ['SO Date', 'Date'], fromDate, toDate);
+  var purchases = _filterDate(data.purchases, ['Date'], fromDate, toDate);
+  var receipts = _filterDate(data.receipts, ['Date'], fromDate, toDate);
+  var payments = _filterDate(data.payments, ['Date'], fromDate, toDate);
+  var capital = _filterDate(data.capital, ['Date'], fromDate, toDate);
+
+  var totalSales = sales.reduce(function(sum, row) {
+    return sum + _num(_getValue(row, ['Total SO Amount', 'Grand Total', 'Total', 'Amount'], 0));
+  }, 0);
+
+  var totalPurchases = purchases.reduce(function(sum, row) {
+    return sum + _num(_getValue(row, ['Grand Total', 'Total', 'Amount'], 0));
+  }, 0);
+
+  var totalExpenses = _getExpensesTotalLocal(data.expenses, fromDate, toDate);
+
+  // ✅ FIFO-Based Gross Profit আসে SalesDetails এর L column থেকে
+  var profitData = _getGrossProfitFromSalesDetails(data.salesDetails, fromDate, toDate);
+  var cogs = profitData.cogs;
+  var grossProfit = profitData.grossProfit;
+  var netProfit = grossProfit - totalExpenses;
+
+  var totalReceivable = (data.customers || []).reduce(function(sum, row) {
+    return sum + _num(_getValue(row, ['Balance Receivable', 'Due', 'Receivable'], 0));
+  }, 0);
+
+  var totalPayable = (data.suppliers || []).reduce(function(sum, row) {
+    return sum + _num(_getValue(row, ['Balance Payable', 'Due', 'Payable'], 0));
+  }, 0);
+
+  var totalReceiptsPeriod = receipts.reduce(function(sum, row) {
+    return sum + _num(_getValue(row, ['Amount'], 0));
+  }, 0);
+
+  var totalPaymentsPeriod = payments.reduce(function(sum, row) {
+    return sum + _num(_getValue(row, ['Amount'], 0));
+  }, 0);
+
+  var periodCapital = _getCapitalMetrics(capital);
+  var allTimeCash = _getAllTimeCashMetrics(data);
+
+  var inventoryValue = (data.products || []).reduce(function(sum, row) {
+    var stock = _num(_getValue(row, ['Stock', 'Remaining QTY'], 0));
+    var cost = _num(_getValue(row, ['Cost', 'Purchase Price', 'Buying Price'], 0));
+    return sum + (stock * cost);
+  }, 0);
+
+  var lowStockItems = (data.products || []).filter(function(row) {
+    var stock = _num(_getValue(row, ['Stock', 'Remaining QTY'], 0));
+    var reorder = _num(_getValue(row, ['Reorder Level'], 0));
+    return stock <= reorder;
+  }).length;
+
+  var previous = _getPreviousPeriod(fromDate, toDate);
+
+  var previousSales = getKPIsBaseSales(data.sales, previous.fromDate, previous.toDate);
+  var previousPurchases = getKPIsBasePurchases(data.purchases, previous.fromDate, previous.toDate);
+  var previousExpenses = _getExpensesTotalLocal(data.expenses, previous.fromDate, previous.toDate);
+
+  // ✅ Previous period Gross Profit-ও Profit column থেকে
+  var previousProfitData = _getGrossProfitFromSalesDetails(data.salesDetails, previous.fromDate, previous.toDate);
+  var previousGross = previousProfitData.grossProfit;
+  var previousNet = previousGross - previousExpenses;
+
+  return {
+    totalSales: totalSales,
+    totalPurchases: totalPurchases,
+    cogs: cogs,
+    grossProfit: grossProfit,
+    netProfit: netProfit,
+    totalExpenses: totalExpenses,
+    totalReceivable: totalReceivable,
+    totalPayable: totalPayable,
+    cashInHand: allTimeCash.cashInHand,
+    cashOpening: allTimeCash.openingCash,
+    totalReceipts: allTimeCash.totalReceipts,
+    totalPayments: allTimeCash.totalPayments,
+    totalCashExpenses: allTimeCash.totalExpenses,
+    totalCapitalAdded: allTimeCash.capitalAdded,
+    totalCapitalWithdraw: allTimeCash.capitalWithdraw,
+    selectedPeriodReceipts: totalReceiptsPeriod,
+    selectedPeriodPayments: totalPaymentsPeriod,
+    selectedPeriodCapitalAdded: periodCapital.capitalAdded,
+    selectedPeriodCapitalWithdraw: periodCapital.capitalWithdraw,
+    inventoryValue: inventoryValue,
+    lowStockItems: lowStockItems,
+    salesChange: _calcChange(totalSales, previousSales),
+    purchasesChange: _calcChange(totalPurchases, previousPurchases),
+    grossProfitChange: _calcChange(grossProfit, previousGross),
+    netProfitChange: _calcChange(netProfit, previousNet),
+    expensesChange: _calcChange(totalExpenses, previousExpenses),
+    receivableChange: 0,
+    payableChange: 0,
+    cashChange: 0,
+    inventoryChange: 0,
+    lowStockChange: 0
+  };
+}
+
+// ============================================================
+// BASE KPI
+// ============================================================
+
+function getKPIsBaseSales(rows, fromDate, toDate) {
+  return _filterDate(rows, ['SO Date', 'Date'], fromDate, toDate).reduce(function(sum, row) {
+    return sum + _num(_getValue(row, ['Total SO Amount', 'Grand Total', 'Total', 'Amount'], 0));
+  }, 0);
+}
+
+function getKPIsBasePurchases(rows, fromDate, toDate) {
+  return _filterDate(rows, ['Date'], fromDate, toDate).reduce(function(sum, row) {
+    return sum + _num(_getValue(row, ['Grand Total', 'Total', 'Amount'], 0));
+  }, 0);
+}
+
+// ============================================================
+// CHARTS  ✅ Uses SalesDetails "Profit" column
+// ============================================================
+
+function getCharts(data, fromDate, toDate) {
+  var salesRows = _filterDate(data.sales, ['SO Date', 'Date'], fromDate, toDate);
+  var purchaseRows = _filterDate(data.purchases, ['Date'], fromDate, toDate);
+  var months = {};
+
+  salesRows.forEach(function(row) {
+    var date = _dateKey(_getValue(row, ['SO Date', 'Date'], ''));
+    if (!date) return;
+    var month = date.substring(0, 7);
+    if (!months[month]) months[month] = { sales: 0, purchases: 0 };
+    months[month].sales += _num(_getValue(row, ['Total SO Amount', 'Grand Total', 'Total', 'Amount'], 0));
+  });
+
+  purchaseRows.forEach(function(row) {
+    var date = _dateKey(_getValue(row, ['Date'], ''));
+    if (!date) return;
+    var month = date.substring(0, 7);
+    if (!months[month]) months[month] = { sales: 0, purchases: 0 };
+    months[month].purchases += _num(_getValue(row, ['Grand Total', 'Total', 'Amount'], 0));
+  });
+
+  var labels = Object.keys(months).sort();
+  var salesData = labels.map(function(m) { return months[m].sales; });
+  var purchaseData = labels.map(function(m) { return months[m].purchases; });
+
+  // ✅ Profit Analysis: মাস অনুযায়ী Profit column থেকে যোগ করি
+  var fromKey = _localDateKey(fromDate);
+  var toKey = _localDateKey(toDate);
+  var profitByMonth = {};
+
+  (data.salesDetails || []).forEach(function(row) {
+    var dateKey = _localDateKey(_getValue(row, ['Date', 'SO Date'], ''));
+    if (!dateKey || dateKey < fromKey || dateKey > toKey) return;
+
+    var month = dateKey.substring(0, 7);
+    if (!profitByMonth[month]) profitByMonth[month] = { sales: 0, cogs: 0, grossProfit: 0, expenses: 0 };
+
+    var qty = _num(_getValue(row, ['QTY', 'QTY Sold', 'Quantity'], 0));
+    var rate = _num(_getValue(row, ['Rate', 'Unit Price', 'Selling Price'], 0));
+    var lineSales = _num(_getValue(row, ['Total Sales', 'Line Total', 'Total'], 0));
+    if (lineSales === 0 && qty && rate) lineSales = qty * rate;
+
+    var lineProfit = _num(_getValue(row, ['Profit'], 0));
+
+    profitByMonth[month].sales += lineSales;
+    profitByMonth[month].cogs += (lineSales - lineProfit);
+    profitByMonth[month].grossProfit += lineProfit;
+  });
+
+  // Expense per month
+  var expenseRows = (data.expenses || []).filter(function(row) {
+    var rawDate = _getValue(row, ['Date', 'Expense Date'], '');
+    var dateKey = _localDateKey(rawDate);
+    return dateKey && dateKey >= fromKey && dateKey <= toKey;
+  });
+
+  expenseRows.forEach(function(row) {
+    var date = _dateKey(_getValue(row, ['Date', 'Expense Date'], ''));
+    if (!date) return;
+    var month = date.substring(0, 7);
+    if (!profitByMonth[month]) profitByMonth[month] = { sales: 0, cogs: 0, grossProfit: 0, expenses: 0 };
+    profitByMonth[month].expenses += _localNum(_getValue(row, ['Amount', 'Expense Amount', 'Total'], 0));
+  });
+
+  var profitLabels = Object.keys(profitByMonth).sort();
+
+  var profitSales = profitLabels.map(function(m) { return profitByMonth[m].sales; });
+  var profitCogs = profitLabels.map(function(m) { return profitByMonth[m].cogs; });
+  var profitGross = profitLabels.map(function(m) { return profitByMonth[m].grossProfit; });
+  var profitExpenses = profitLabels.map(function(m) { return profitByMonth[m].expenses; });
+  var profitNet = profitLabels.map(function(m) { return profitByMonth[m].grossProfit - profitByMonth[m].expenses; });
+
+  var expenseCategory = {};
+
+  expenseRows.forEach(function(row) {
+    var category = _getValue(row, ['Category', 'Type'], 'Miscellaneous');
+    category = String(category).trim() || 'Miscellaneous';
+    expenseCategory[category] = (expenseCategory[category] || 0) + _localNum(_getValue(row, ['Amount', 'Expense Amount', 'Total'], 0));
+  });
+
+  var expenseLabels = Object.keys(expenseCategory).sort();
+  var expenseValues = expenseLabels.map(function(category) { return expenseCategory[category]; });
+
+  return {
+    salesPurchase: {
+      labels: labels.length ? labels : ['No Data'],
+      sales: salesData.length ? salesData : [0],
+      purchases: purchaseData.length ? purchaseData : [0]
+    },
+    profit: {
+      labels: profitLabels.length ? profitLabels : ['No Data'],
+      sales: profitSales.length ? profitSales : [0],
+      cogs: profitCogs.length ? profitCogs : [0],
+      grossProfit: profitGross.length ? profitGross : [0],
+      expenses: profitExpenses.length ? profitExpenses : [0],
+      netProfit: profitNet.length ? profitNet : [0]
+    },
+    expense: {
+      labels: expenseLabels.length ? expenseLabels : ['No Data'],
+      values: expenseValues.length ? expenseValues : [0]
+    }
+  };
+}
+
+// ============================================================
+// TOP SELLING PRODUCTS  ✅ Uses SalesDetails "Profit" column
+// ============================================================
+
+function getTopSellingProducts(data, fromDate, toDate) {
+  var fromKey = _localDateKey(fromDate);
+  var toKey = _localDateKey(toDate);
+  var productMap = {};
+
+  (data.salesDetails || []).forEach(function(row) {
+    var dateKey = _localDateKey(_getValue(row, ['Date', 'SO Date'], ''));
+    if (!dateKey || dateKey < fromKey || dateKey > toKey) return;
+
+    var name = _getValue(row, ['Product Name', 'Item Name', 'Product'], '');
+    if (!name) return;
+    name = String(name).trim();
+
+    var qty = _num(_getValue(row, ['QTY', 'QTY Sold', 'Quantity'], 0));
+    var rate = _num(_getValue(row, ['Rate', 'Unit Price', 'Selling Price'], 0));
+    var total = _num(_getValue(row, ['Total Sales', 'Line Total', 'Total'], 0));
+    if (total === 0 && qty && rate) total = qty * rate;
+
+    var profit = _num(_getValue(row, ['Profit'], 0));
+
+    if (!productMap[name]) productMap[name] = { qty: 0, sales: 0, profit: 0 };
+    productMap[name].qty += qty;
+    productMap[name].sales += total;
+    productMap[name].profit += profit;
+  });
+
+  var result = Object.keys(productMap).map(function(name) {
+    return {
+      product: name,
+      qty: productMap[name].qty,
+      sales: productMap[name].sales,
+      profit: productMap[name].profit
+    };
+  });
+
+  result.sort(function(a, b) { return b.sales - a.sales; });
+  return result.slice(0, 10);
+}
+
+// ============================================================
+// LOW STOCK
+// ============================================================
+
+function getLowStockProducts(data) {
+  return (data.products || []).map(function(row) {
+    var stock = _num(_getValue(row, ['Stock', 'Remaining QTY'], 0));
+    var reorder = _num(_getValue(row, ['Reorder Level'], 0));
+    var status = 'Normal';
+    if (stock === 0) status = 'Critical';
+    else if (stock <= reorder) status = 'Low';
+
+    return {
+      product: _getValue(row, ['Product Name', 'Item Name'], 'Unknown'),
+      stock: stock,
+      reorder: reorder,
+      status: status
+    };
+  }).filter(function(row) {
+    return row.stock <= row.reorder;
+  }).sort(function(a, b) {
+    return a.stock - b.stock;
+  }).slice(0, 10);
+}
+
+// ============================================================
+// RECEIVABLES
+// ============================================================
+
+function getReceivables(data) {
+  return (data.customers || []).filter(function(row) {
+    return _num(_getValue(row, ['Balance Receivable', 'Due', 'Receivable'], 0)) > 0;
+  }).sort(function(a, b) {
+    return _num(_getValue(b, ['Balance Receivable', 'Due', 'Receivable'], 0)) -
+      _num(_getValue(a, ['Balance Receivable', 'Due', 'Receivable'], 0));
+  }).slice(0, 10).map(function(row) {
+    return {
+      customer: _getValue(row, ['Customer Name', 'Name'], 'Unknown'),
+      invoice: _getValue(row, ['Customer ID', 'Customers ID'], ''),
+      date: '',
+      due: _num(_getValue(row, ['Balance Receivable', 'Due', 'Receivable'], 0))
+    };
+  });
+}
+
+// ============================================================
+// PAYABLES
+// ============================================================
+
+function getPayables(data) {
+  return (data.suppliers || []).filter(function(row) {
+    return _num(_getValue(row, ['Balance Payable', 'Due', 'Payable'], 0)) > 0;
+  }).sort(function(a, b) {
+    return _num(_getValue(b, ['Balance Payable', 'Due', 'Payable'], 0)) -
+      _num(_getValue(a, ['Balance Payable', 'Due', 'Payable'], 0));
+  }).slice(0, 10).map(function(row) {
+    return {
+      supplier: _getValue(row, ['Supplier Name', 'Name'], 'Unknown'),
+      po: _getValue(row, ['Supplier ID', 'PO ID'], ''),
+      date: '',
+      due: _num(_getValue(row, ['Balance Payable', 'Due', 'Payable'], 0))
+    };
+  });
+}
+
+// ============================================================
+// RECENT TRANSACTIONS
+// ============================================================
+
+function getRecentTransactions(data) {
+  var transactions = [];
+
+  (data.sales || []).forEach(function(row) {
+    transactions.push({
+      date: _dateKey(_getValue(row, ['SO Date', 'Date'], '')),
+      invoice: _getValue(row, ['Invoice Num', 'Invoice No', 'SO ID'], ''),
+      type: 'Sale',
+      party: _getValue(row, ['Customer Name', 'Customer'], ''),
+      amount: _num(_getValue(row, ['Total SO Amount', 'Grand Total', 'Total', 'Amount'], 0)),
+      payment: _num(_getValue(row, ['Total Received', 'Payment', 'Received'], 0)),
+      status: _getValue(row, ['Status'], 'Pending')
+    });
+  });
+
+  (data.purchases || []).forEach(function(row) {
+    transactions.push({
+      date: _dateKey(_getValue(row, ['Date'], '')),
+      invoice: _getValue(row, ['PO ID', 'Purchase Order ID'], ''),
+      type: 'Purchase',
+      party: _getValue(row, ['Supplier Name', 'Supplier'], ''),
+      amount: _num(_getValue(row, ['Grand Total', 'Total', 'Amount'], 0)),
+      payment: _num(_getValue(row, ['Payment', 'Paid'], 0)),
+      status: _getValue(row, ['Status'], 'Pending')
+    });
+  });
+
+  (data.expenses || []).forEach(function(row) {
+    transactions.push({
+      date: _dateKey(_getValue(row, ['Date'], '')),
+      invoice: _getValue(row, ['ID'], ''),
+      type: 'Expense',
+      party: _getValue(row, ['Category', 'Type'], ''),
+      amount: _num(_getValue(row, ['Amount'], 0)),
+      payment: _num(_getValue(row, ['Amount'], 0)),
+      status: 'Paid'
+    });
+  });
+
+  (data.receipts || []).forEach(function(row) {
+    transactions.push({
+      date: _dateKey(_getValue(row, ['Date'], '')),
+      invoice: _getValue(row, ['Transaction ID', 'Receipt ID'], ''),
+      type: 'Receipt',
+      party: _getValue(row, ['Customer Name', 'Customer'], ''),
+      amount: _num(_getValue(row, ['Amount'], 0)),
+      payment: _num(_getValue(row, ['Amount'], 0)),
+      status: 'Paid'
+    });
+  });
+
+  (data.payments || []).forEach(function(row) {
+    transactions.push({
+      date: _dateKey(_getValue(row, ['Date'], '')),
+      invoice: _getValue(row, ['Payment ID'], ''),
+      type: 'Payment',
+      party: _getValue(row, ['Supplier Name', 'Supplier'], ''),
+      amount: _num(_getValue(row, ['Amount'], 0)),
+      payment: _num(_getValue(row, ['Amount'], 0)),
+      status: 'Paid'
+    });
+  });
+
+  (data.capital || []).forEach(function(row) {
+    var amount = _num(_getValue(row, ['Amount'], 0));
+    var type = String(_getValue(row, ['Type'], '')).toLowerCase();
+    var description = String(_getValue(row, ['Description', 'Note'], '')).toLowerCase();
+    var isWithdraw = type.indexOf('withdraw') !== -1 || description.indexOf('withdraw') !== -1 || description.indexOf('withdrawal') !== -1 || amount < 0;
+
+    transactions.push({
+      date: _dateKey(_getValue(row, ['Date'], '')),
+      invoice: 'CAPITAL',
+      type: isWithdraw ? 'Capital Withdraw' : 'Capital Added',
+      party: _getValue(row, ['Description', 'Note'], 'Capital'),
+      amount: Math.abs(amount),
+      payment: Math.abs(amount),
+      status: 'Completed'
+    });
+  });
+
+  transactions.sort(function(a, b) {
+    return String(b.date || '').localeCompare(String(a.date || ''));
+  });
+
+  return transactions.slice(0, 10);
+}
+
+// ============================================================
+// SUMMARY  ✅ Uses SalesDetails "Profit" column
+// ============================================================
+
+function getSummary(data, fromDate, toDate) {
+  var today = _dateKey(new Date());
+  var currentDate = new Date();
+  var monthStart = _dateKey(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1));
+
+  var todaySales = getKPIsBaseSales(data.sales, today, today);
+  var todayPurchases = getKPIsBasePurchases(data.purchases, today, today);
+  var todayExpenses = _getExpensesTotalLocal(data.expenses, today, today);
+  var todayProfitData = _getGrossProfitFromSalesDetails(data.salesDetails, today, today);
+  var todayProfit = todayProfitData.grossProfit - todayExpenses;
+
+  var monthSales = getKPIsBaseSales(data.sales, monthStart, today);
+  var monthPurchases = getKPIsBasePurchases(data.purchases, monthStart, today);
+  var monthExpenses = _getExpensesTotalLocal(data.expenses, monthStart, today);
+  var monthProfitData = _getGrossProfitFromSalesDetails(data.salesDetails, monthStart, today);
+  var monthProfit = monthProfitData.grossProfit - monthExpenses;
+
+  var selectedSales = getKPIsBaseSales(data.sales, fromDate, toDate);
+  var selectedPurchases = getKPIsBasePurchases(data.purchases, fromDate, toDate);
+  var selectedExpenses = _getExpensesTotalLocal(data.expenses, fromDate, toDate);
+  var selectedProfitData = _getGrossProfitFromSalesDetails(data.salesDetails, fromDate, toDate);
+  var selectedProfit = selectedProfitData.grossProfit - selectedExpenses;
+
+  return {
+    todaySales: todaySales,
+    todayPurchases: todayPurchases,
+    todayExpenses: todayExpenses,
+    todayProfit: todayProfit,
+    todayGrossProfit: todayProfitData.grossProfit,
+
+    monthSales: monthSales,
+    monthPurchases: monthPurchases,
+    monthExpenses: monthExpenses,
+    monthProfit: monthProfit,
+    monthGrossProfit: monthProfitData.grossProfit,
+
+    selectedSales: selectedSales,
+    selectedPurchases: selectedPurchases,
+    selectedExpenses: selectedExpenses,
+    selectedProfit: selectedProfit,
+    selectedGrossProfit: selectedProfitData.grossProfit
+  };
+}
+
+// ============================================================
+// INVENTORY SUMMARY
+// ============================================================
+
+function getInventorySummary(data) {
+  var products = data.products || [];
+
+  var totalProducts = products.length;
+
+  var totalUnits = products.reduce(function(sum, row) {
+    return sum + _num(_getValue(row, ['Stock', 'Remaining QTY'], 0));
+  }, 0);
+
+  var value = products.reduce(function(sum, row) {
+    var stock = _num(_getValue(row, ['Stock', 'Remaining QTY'], 0));
+    var cost = _num(_getValue(row, ['Cost', 'Purchase Price', 'Buying Price'], 0));
+    return sum + (stock * cost);
+  }, 0);
+
+  var lowStock = products.filter(function(row) {
+    var stock = _num(_getValue(row, ['Stock', 'Remaining QTY'], 0));
+    var reorder = _num(_getValue(row, ['Reorder Level'], 0));
+    return stock > 0 && stock <= reorder;
+  }).length;
+
+  var outOfStock = products.filter(function(row) {
+    var stock = _num(_getValue(row, ['Stock', 'Remaining QTY'], 0));
+    return stock <= 0;
+  }).length;
+
+  return {
+    totalProducts: totalProducts,
+    totalUnits: totalUnits,
+    value: value,
+    lowStock: lowStock,
+    outOfStock: outOfStock
+  };
+}
+
+// ============================================================
+// DASHBOARD BACKUP
+// ============================================================
+
+function runDashboardBackup() {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var backupSheet = ss.getSheetByName('Dashboard Backup');
+
+    if (!backupSheet) {
+      backupSheet = ss.insertSheet('Dashboard Backup');
+      backupSheet.appendRow([
+        'Timestamp',
+        'Total Sales',
+        'Total Purchases',
+        'Estimated Profit',
+        'Total Orders',
+        'Customers',
+        'Suppliers',
+        'Products',
+        'Low Stock'
+      ]);
+      backupSheet.getRange(1, 1, 1, 9).setFontWeight('bold');
+      backupSheet.setFrozenRows(1);
+    }
+
+    var sales = _getSheetData(DASHBOARD_SHEETS.SALES);
+    var purchases = _getSheetData(DASHBOARD_SHEETS.PURCHASES);
+    var customers = _getSheetData(DASHBOARD_SHEETS.CUSTOMERS);
+    var suppliers = _getSheetData(DASHBOARD_SHEETS.SUPPLIERS);
+    var products = _getSheetData(DASHBOARD_SHEETS.PRODUCTS);
+    var salesDetails = _getSheetData(DASHBOARD_SHEETS.SALES_DETAILS);
+
+    var totalSales = getKPIsBaseSales(sales, '1900-01-01', '2999-12-31');
+    var totalPurchases = getKPIsBasePurchases(purchases, '1900-01-01', '2999-12-31');
+
+    // ✅ Estimated Profit = SalesDetails Profit sum − Expenses sum
+    var expenses = _getExpensesSheetData();
+    var profitData = _getGrossProfitFromSalesDetails(salesDetails, '1900-01-01', '2999-12-31');
+    var totalExpenses = _getExpensesTotalLocal(expenses, '1900-01-01', '2999-12-31');
+    var estimatedProfit = profitData.grossProfit - totalExpenses;
+
+    var totalOrders = sales.length;
+    var totalCustomers = customers.length;
+    var totalSuppliers = suppliers.length;
+    var totalProducts = products.length;
+
+    var lowStock = products.filter(function(row) {
+      var stock = _num(_getValue(row, ['Stock', 'Remaining QTY'], 0));
+      var reorder = _num(_getValue(row, ['Reorder Level'], 0));
+      return stock <= reorder;
+    }).length;
+
+    var timestamp = new Date();
+
+    backupSheet.appendRow([
+      timestamp,
+      totalSales,
+      totalPurchases,
+      estimatedProfit,
+      totalOrders,
+      totalCustomers,
+      totalSuppliers,
+      totalProducts,
+      lowStock
+    ]);
+
+    return {
+      status: 'success',
+      data: { timestamp: timestamp }
+    };
+  } catch (e) {
+    console.error('Backup error:', e);
+    return {
+      status: 'error',
+      message: e && e.message ? e.message : String(e)
+    };
+  }
+}
+
+// ============================================================
+// TESTS
+// ============================================================
+
+function testBackend() {
+  return {
+    status: 'success',
+    message: 'MIM ERP Dashboard Backend is working!'
+  };
+}
+
+function testDashboardData() {
+  var result = getDashboardData({
+    fromDate: _dateKey(new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000)),
+    toDate: _dateKey(new Date())
+  });
+
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+function testCashInHand() {
+  var result = getCashFlow('', '');
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+// ✅ নতুন test – Dashboard KPI আর SalesDetails L column মিলে কিনা দেখার জন্য
+function testDashboardGrossProfit() {
+  var today = new Date();
+  var fromDate = _dateKey(new Date(today.getTime() - 365 * 24 * 60 * 60 * 1000));
+  var toDate = _dateKey(today);
+
+  var data = {
+    sales: _getSheetData(DASHBOARD_SHEETS.SALES),
+    salesDetails: _getSheetData(DASHBOARD_SHEETS.SALES_DETAILS),
+    purchases: _getSheetData(DASHBOARD_SHEETS.PURCHASES),
+    expenses: _getExpensesSheetData(),
+    customers: _getSheetData(DASHBOARD_SHEETS.CUSTOMERS),
+    suppliers: _getSheetData(DASHBOARD_SHEETS.SUPPLIERS),
+    products: _getSheetData(DASHBOARD_SHEETS.PRODUCTS),
+    receipts: _getSheetData(DASHBOARD_SHEETS.RECEIPTS),
+    payments: _getSheetData(DASHBOARD_SHEETS.PAYMENTS),
+    capital: _getSheetData(DASHBOARD_SHEETS.CAPITAL)
+  };
+
+  var kpis = getKPIs(data, fromDate, toDate);
+  var profitData = _getGrossProfitFromSalesDetails(data.salesDetails, fromDate, toDate);
+
+  Logger.log('=== DASHBOARD KPI ===');
+  Logger.log('Total Sales: ' + kpis.totalSales);
+  Logger.log('Total Purchases: ' + kpis.totalPurchases);
+  Logger.log('COGS: ' + kpis.cogs);
+  Logger.log('Gross Profit: ' + kpis.grossProfit);
+  Logger.log('Expenses: ' + kpis.totalExpenses);
+  Logger.log('Net Profit: ' + kpis.netProfit);
+  Logger.log('');
+  Logger.log('=== SalesDetails "Profit" Column Sum ===');
+  Logger.log('Gross Profit from L column: ' + profitData.grossProfit);
+  Logger.log('COGS (Sales - Profit): ' + profitData.cogs);
+  Logger.log('Sales: ' + profitData.sales);
+
+  return { kpis: kpis, profitData: profitData };
+}

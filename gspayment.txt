@@ -1,0 +1,389 @@
+// ============================================================
+// MIM ERP - SUPPLIER PAYMENTS BACKEND
+// File: gsPayments.gs
+//
+// IMPORTANT:
+// এই কোডটি শুধুমাত্র 'Payments' শিট নিয়ে কাজ করে।
+// Suppliers শিটে কোনো অটো আপডেট করা হয় না।
+// ============================================================
+
+var GS_PAYMENTS_SHEET_NAME = 'Payments';
+
+
+// ============================================================
+// 1. ENSURE PAYMENTS SHEET
+// ============================================================
+function ensurePaymentsSheet_() {
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  var sheet = ss.getSheetByName(GS_PAYMENTS_SHEET_NAME);
+
+  if (!sheet) {
+
+    sheet = ss.insertSheet(GS_PAYMENTS_SHEET_NAME);
+
+    sheet.appendRow([
+      'Payment ID',
+      'Supplier ID',
+      'Supplier Name',
+      'Date',
+      'Amount',
+      'Payment Method',
+      'Reference',
+      'Note'
+    ]);
+
+    sheet.setFrozenRows(1);
+
+    sheet
+      .getRange(1, 1, 1, 8)
+      .setFontWeight('bold');
+
+    return sheet;
+  }
+
+  // If sheet exists but has no rows
+  if (sheet.getLastRow() === 0) {
+
+    sheet.appendRow([
+      'Payment ID',
+      'Supplier ID',
+      'Supplier Name',
+      'Date',
+      'Amount',
+      'Payment Method',
+      'Reference',
+      'Note'
+    ]);
+
+    sheet.setFrozenRows(1);
+  }
+
+  return sheet;
+}
+
+
+// ============================================================
+// 2. GENERATE PAYMENT ID
+// ============================================================
+function generatePaymentId_() {
+
+  var sheet = ensurePaymentsSheet_();
+
+  var lastRow = sheet.getLastRow();
+
+  if (lastRow < 2) {
+    return 'PAY-0001';
+  }
+
+  var data = sheet
+    .getRange(2, 1, lastRow - 1, 1)
+    .getValues();
+
+  var maxNum = 0;
+
+  data.forEach(function(row) {
+
+    var id = String(row[0] || '').trim();
+
+    if (id.indexOf('PAY-') === 0) {
+
+      var num = parseInt(
+        id.substring(4),
+        10
+      );
+
+      if (!isNaN(num) && num > maxNum) {
+        maxNum = num;
+      }
+    }
+  });
+
+  return 'PAY-' +
+    String(maxNum + 1).padStart(4, '0');
+}
+
+
+// ============================================================
+// 3. GET ALL PAYMENTS
+// ============================================================
+function getPayments() {
+
+  try {
+
+    var sheet =
+      ensurePaymentsSheet_();
+
+    var lastRow =
+      sheet.getLastRow();
+
+    if (lastRow < 2) {
+      return [];
+    }
+
+    var data =
+      sheet
+        .getRange(
+          2,
+          1,
+          lastRow - 1,
+          8
+        )
+        .getValues();
+
+    return data.map(function(row) {
+
+      return {
+
+        paymentId:
+          String(row[0] || ''),
+
+        supplierId:
+          String(row[1] || ''),
+
+        supplierName:
+          String(row[2] || ''),
+
+        date:
+          row[3] instanceof Date
+            ? Utilities.formatDate(
+                row[3],
+                Session.getScriptTimeZone(),
+                'dd-MM-yyyy'
+              )
+            : String(row[3] || ''),
+
+        amount:
+          Number(row[4]) || 0,
+
+        paymentMethod:
+          String(row[5] || ''),
+
+        reference:
+          String(row[6] || ''),
+
+        note:
+          String(row[7] || '')
+      };
+
+    });
+
+  } catch (e) {
+
+    Logger.log(
+      'getPayments Error: ' +
+      e.toString()
+    );
+
+    return [];
+  }
+}
+
+
+// ============================================================
+// 4. GET PAYMENTS FOR SPECIFIC SUPPLIER
+// ============================================================
+function getSupplierPayments(supplierId) {
+
+  try {
+
+    var id =
+      String(supplierId || '').trim();
+
+    if (!id) {
+      return [];
+    }
+
+    var payments =
+      getPayments();
+
+    return payments.filter(function(p) {
+
+      return String(
+        p.supplierId
+      ).trim() === id;
+
+    });
+
+  } catch (e) {
+
+    Logger.log(
+      'getSupplierPayments Error: ' +
+      e.toString()
+    );
+
+    return [];
+  }
+}
+
+
+// ============================================================
+// 5. GET CASH PAYMENTS
+// Used by Capital Dashboard / Cash in Hand calculation.
+// Only Payment Method = Cash is returned.
+// ============================================================
+function getCashSupplierPayments() {
+
+  try {
+
+    var payments =
+      getPayments();
+
+    var total = 0;
+
+    payments.forEach(function(p) {
+
+      var method =
+        String(
+          p.paymentMethod || ''
+        ).trim().toLowerCase();
+
+      if (method === 'cash') {
+
+        total +=
+          Number(p.amount) || 0;
+      }
+
+    });
+
+    return total;
+
+  } catch (e) {
+
+    Logger.log(
+      'getCashSupplierPayments Error: ' +
+      e.toString()
+    );
+
+    return 0;
+  }
+}
+
+
+// ============================================================
+// 6. GET BANK SUPPLIER PAYMENTS
+// Only Payment Method = Bank, Online, bKash, Nagad.
+// ============================================================
+function getBankSupplierPayments() {
+
+  try {
+
+    var payments =
+      getPayments();
+
+    var total = 0;
+
+    payments.forEach(function(p) {
+
+      var method =
+        String(
+          p.paymentMethod || ''
+        ).trim().toLowerCase();
+
+      if (
+        method === 'bank' ||
+        method === 'online' ||
+        method === 'bkash' ||
+        method === 'nagad'
+      ) {
+
+        total +=
+          Number(p.amount) || 0;
+      }
+
+    });
+
+    return total;
+
+  } catch (e) {
+
+    Logger.log(
+      'getBankSupplierPayments Error: ' +
+      e.toString()
+    );
+
+    return 0;
+  }
+}
+
+
+// ============================================================
+// 7. GET PAYMENT SUMMARY
+// Useful for Dashboard.
+// Returns: total, cash, bank, other
+// ============================================================
+function getSupplierPaymentSummary() {
+
+  try {
+
+    var payments =
+      getPayments();
+
+    var total = 0;
+    var cash = 0;
+    var bank = 0;
+    var other = 0;
+
+    payments.forEach(function(p) {
+
+      var amount =
+        Number(p.amount) || 0;
+
+      var method =
+        String(
+          p.paymentMethod || ''
+        ).trim().toLowerCase();
+
+      total += amount;
+
+      if (method === 'cash') {
+
+        cash += amount;
+
+      } else if (
+        method === 'bank' ||
+        method === 'online' ||
+        method === 'bkash' ||
+        method === 'nagad'
+      ) {
+
+        bank += amount;
+
+      } else {
+
+        other += amount;
+      }
+
+    });
+
+    return {
+
+      total: total,
+
+      cash: cash,
+
+      bank: bank,
+
+      other: other
+    };
+
+  } catch (e) {
+
+    Logger.log(
+      'getSupplierPaymentSummary Error: ' +
+      e.toString()
+    );
+
+    return {
+
+      total: 0,
+
+      cash: 0,
+
+      bank: 0,
+
+      other: 0
+    };
+  }
+}

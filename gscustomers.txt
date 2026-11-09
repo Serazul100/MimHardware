@@ -1,0 +1,515 @@
+// =========================================================================
+// 🎯 CUSTOMER CORE BACKEND (AUTOMATIC – NO MANUAL SYNC NEEDED)
+// =========================================================================
+
+/**
+ * Customers শিট থেকে ডাটা নিয়ে অবজেক্ট আকারে ফ্রন্টএন্ডে পাঠায়
+ */
+function custGetCustomers() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = ss.getSheetByName('Customers');
+    
+    if (!sheet) {
+      sheet = ss.insertSheet('Customers');
+      sheet.appendRow([
+        'Customers ID', 'Shop Name', 'Mobile Number', 'Customer Name', 
+        'Customer Address', 'Total Sales', 'Total Receipts', 'Balance Receivable'
+      ]);
+      return [];
+    }
+    
+    updateCustomerSalesBalance();
+    recalcAllBalances();
+    
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return []; 
+    
+    const data = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
+    const customers = [];
+    
+    for (let i = 0; i < data.length; i++) {
+      let salesVal = data[i][5];
+      let receiptsVal = data[i][6];
+      let balanceVal = data[i][7];
+
+      let s = (salesVal !== "" && !isNaN(salesVal)) ? Number(salesVal) : 0;
+      let r = (receiptsVal !== "" && !isNaN(receiptsVal)) ? Number(receiptsVal) : 0;
+      let b = (balanceVal !== "" && !isNaN(balanceVal)) ? Number(balanceVal) : (s - r);
+
+      customers.push({
+        id: String(data[i][0]).trim(),
+        shopName: data[i][1] ? String(data[i][1]).trim() : '',
+        mobile: data[i][2] ? String(data[i][2]).trim() : '',
+        name: data[i][3] ? String(data[i][3]).trim() : '',
+        address: data[i][4] ? String(data[i][4]).trim() : '',
+        sales: s,
+        receipts: r,
+        balance: b
+      });
+    }
+    return customers;
+  } catch(e) { 
+    Logger.log("Error in custGetCustomers: " + e.toString());
+    return []; 
+  }
+}
+
+/**
+ * Total Sales (F) কলামে SUMIF ফর্মুলা বসায়।
+ */
+function updateCustomerSalesBalance() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const customerSheet = ss.getSheetByName('Customers');
+    const salesSheet = ss.getSheetByName('SaleOrders');
+    
+    if (!customerSheet || !salesSheet) {
+      Logger.log("Error: Customers or SaleOrders sheet not found!");
+      return;
+    }
+    
+    const lastRow = customerSheet.getLastRow();
+    if (lastRow < 2) return; 
+    
+    const totalRows = lastRow - 1; 
+    customerSheet.getRange(2, 6, totalRows, 1).setFormula(`=SUMIF(SaleOrders!C:C, A2, SaleOrders!F:F)`);
+    
+    SpreadsheetApp.flush(); 
+  } catch(e) {
+    Logger.log("Error in updateCustomerSalesBalance: " + e.toString());
+  }
+}
+
+/**
+ * সমস্ত Balance (H) কলামে ফর্মুলা =F(row)-G(row) সেট করে।
+ */
+function recalcAllBalances() {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Customers');
+    if (!sheet) return;
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return;
+    const totalRows = lastRow - 1;
+    sheet.getRange(2, 8, totalRows, 1).setFormulaR1C1("=RC[-2]-RC[-1]");
+  } catch(e) {
+    Logger.log("Error in recalcAllBalances: " + e.toString());
+  }
+}
+
+/**
+ * নতুন কাস্টমার অ্যাড
+ */
+function custAddNewCustomer(c) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = ss.getSheetByName("Customers");
+    if (!sheet) return false;
+    
+    const data = sheet.getDataRange().getValues();
+    let maxNum = 0;
+    for (let i = 1; i < data.length; i++) {
+      let idStr = String(data[i][0]).trim();
+      if (idStr.startsWith("C-")) {
+        let num = parseInt(idStr.replace("C-", ""), 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
+      }
+    }
+    
+    let autoId = "C-" + String(maxNum + 1).padStart(3, "0");
+
+    sheet.appendRow([
+      autoId, c.shopName, c.mobile, c.name, c.address, 0, 0, 0
+    ]);
+    
+    updateCustomerSalesBalance();
+    recalcAllBalances();
+    return true;
+  } catch(e) {
+    return false;
+  }
+}
+
+/**
+ * কাস্টমার আপডেট (রিসিট অ্যাডজাস্টমেন্ট + লগ)
+ */
+function custUpdateCustomer(c) {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Customers");
+    if (!sheet) return false;
+    const data = sheet.getDataRange().getValues();
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim() === String(c.id).trim()) {
+        let row = i + 1;
+        sheet.getRange(row, 2).setValue(c.shopName);
+        sheet.getRange(row, 3).setValue(c.mobile);
+        sheet.getRange(row, 4).setValue(c.name);
+        sheet.getRange(row, 5).setValue(c.address);
+
+        if (c.receiptDelta !== undefined && c.receiptDelta !== "" && !isNaN(Number(c.receiptDelta))) {
+          let delta = Number(c.receiptDelta);
+          let currentCell = sheet.getRange(row, 7);
+          let currentVal = currentCell.getValue();
+          if (isNaN(currentVal)) currentVal = 0;
+          let newReceipts = Number(currentVal) + delta;
+          currentCell.setValue(newReceipts);
+          
+          // ✅ লগ ট্রানজেকশন
+          logReceiptTransaction(c.id, c.name || data[i][3], delta, newReceipts);
+        }
+        
+        sheet.getRange(row, 8).setFormulaR1C1("=RC[-2]-RC[-1]");
+        
+        return true;
+      }
+    }
+    return false;
+  } catch(e) {
+    Logger.log("Error in custUpdateCustomer: " + e.toString());
+    return false;
+  }
+}
+
+/**
+ * কাস্টমার ডিলিট
+ */
+function custDeleteCustomer(id) {
+  try {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Customers");
+    if (!sheet) return false;
+    const data = sheet.getDataRange().getValues();
+
+    for (let i = 1; i < data.length; i++) {
+      if (String(data[i][0]).trim() === String(id).trim()) {
+        sheet.deleteRow(i + 1);
+        updateCustomerSalesBalance();
+        return true;
+      }
+    }
+    return false;
+  } catch(e) {
+    return false;
+  }
+}
+
+/**
+ * সার্চ
+ */
+function custSearchCustomers(keyword) {
+  try {
+    const all = custGetCustomers();
+    if (!keyword) return all;
+    keyword = keyword.toLowerCase().trim();
+    return all.filter(c =>
+      (c.id || "").toLowerCase().includes(keyword) ||
+      (c.shopName || "").toLowerCase().includes(keyword) ||
+      (c.mobile || "").toLowerCase().includes(keyword) ||
+      (c.name || "").toLowerCase().includes(keyword)
+    );
+  } catch(e) {
+    return [];
+  }
+}
+
+// =========================================================================
+// 🆕 RECEIPT TRANSACTIONS & INVOICE REPORT
+// =========================================================================
+
+/**
+ * সব শিট নিশ্চিত করা
+ */
+function ensureAllSheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let custSheet = ss.getSheetByName('Customers');
+  if (!custSheet) {
+    custSheet = ss.insertSheet('Customers');
+    custSheet.appendRow([
+      'Customers ID', 'Shop Name', 'Mobile Number', 'Customer Name', 
+      'Customer Address', 'Total Sales', 'Total Receipts', 'Balance Receivable'
+    ]);
+  }
+  let txnSheet = ss.getSheetByName('ReceiptTransactions');
+  if (!txnSheet) {
+    txnSheet = ss.insertSheet('ReceiptTransactions');
+    txnSheet.appendRow([
+      'Transaction ID', 'Customer ID', 'Customer Name', 'Date', 
+      'Amount', 'Running Balance', 'Note'
+    ]);
+  }
+}
+
+/**
+ * ReceiptTransactions শিট নিশ্চিত করা
+ */
+function ensureReceiptTransactionsSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('ReceiptTransactions');
+  if (!sheet) {
+    sheet = ss.insertSheet('ReceiptTransactions');
+    sheet.appendRow([
+      'Transaction ID', 'Customer ID', 'Customer Name', 'Date', 
+      'Amount', 'Running Balance', 'Note'
+    ]);
+  }
+  return sheet;
+}
+
+/**
+ * রিসিট ট্রানজেকশন লগ করা
+ */
+function logReceiptTransaction(customerId, customerName, amount, newBalance) {
+  try {
+    const sheet = ensureReceiptTransactionsSheet();
+    const txnId = 'TXN-' + Utilities.getUuid().slice(0,6).toUpperCase();
+    const date = new Date().toISOString().slice(0,10);
+    sheet.appendRow([
+      txnId,
+      customerId,
+      customerName,
+      date,
+      amount,
+      newBalance,
+      'Receipt adjustment'
+    ]);
+    Logger.log(`✅ Transaction logged: ${txnId} for ${customerId}`);
+  } catch(e) {
+    Logger.log("❌ Error logging transaction: " + e.toString());
+  }
+}
+
+/**
+ * নির্দিষ্ট কাস্টমারের সব ট্রানজেকশন পাওয়া
+ */
+function getCustomerTransactions(customerId) {
+  try {
+    const sheet = ensureReceiptTransactionsSheet();
+    const data = sheet.getDataRange().getValues();
+    const transactions = [];
+    for (let i = 1; i < data.length; i++) {
+      let sheetCustId = String(data[i][1]).trim();
+      let searchId = String(customerId).trim();
+      if (sheetCustId === searchId) {
+        transactions.push({
+          id: data[i][0],
+          customerId: sheetCustId,
+          customerName: data[i][2] || '',
+          date: data[i][3] ? data[i][3].toString() : '',
+          amount: Number(data[i][4]) || 0,
+          runningBalance: Number(data[i][5]) || 0,
+          note: data[i][6] || ''
+        });
+      }
+    }
+    transactions.sort((a,b) => new Date(a.date) - new Date(b.date));
+    return transactions;
+  } catch(e) {
+    Logger.log("❌ Error in getCustomerTransactions: " + e.toString());
+    return [];
+  }
+}
+
+/**
+ * ইনভয়েস ডেটা: কাস্টমার + ট্রানজেকশন
+ */
+function getCustomerInvoiceData(customerId) {
+  try {
+    ensureAllSheets();
+    const customers = custGetCustomers();
+    if (!customers || customers.length === 0) {
+      Logger.log("⚠️ No customers found in sheet.");
+      return null;
+    }
+    
+    let trimmedId = String(customerId).trim();
+    let customer = customers.find(c => String(c.id).trim() === trimmedId);
+    
+    if (!customer) {
+      Logger.log(`⚠️ Customer with ID "${trimmedId}" not found. Trying fallback...`);
+      customer = customers.find(c => 
+        String(c.name).trim().toLowerCase() === trimmedId.toLowerCase() ||
+        String(c.shopName).trim().toLowerCase() === trimmedId.toLowerCase()
+      );
+    }
+    
+    if (!customer) {
+      Logger.log(`❌ Customer not found for ID: "${customerId}"`);
+      return null;
+    }
+    
+    const transactions = getCustomerTransactions(customer.id);
+    return {
+      customer: customer,
+      transactions: transactions
+    };
+  } catch(e) {
+    Logger.log("❌ Error in getCustomerInvoiceData: " + e.toString());
+    return null;
+  }
+}
+
+/* ============================================================
+   ✅ DELETE CUSTOMER RECEIPT TRANSACTION
+   ⚠️ IMPORTANT: Named deleteCustomerReceiptTransaction to avoid
+   conflict with Order page's deleteReceiptTransaction(invoiceNo).
+   
+   Returns object {success, error, ...} — NOT a boolean.
+   ============================================================ */
+function deleteCustomerReceiptTransaction(transactionId) {
+  try {
+    if (transactionId === null || transactionId === undefined || transactionId === '') {
+      return { success: false, error: 'Transaction ID is required' };
+    }
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sh = ss.getSheetByName('ReceiptTransactions');
+    if (!sh) {
+      return { success: false, error: 'ReceiptTransactions sheet not found' };
+    }
+
+    const lastRow = sh.getLastRow();
+    if (lastRow < 2) {
+      return { success: false, error: 'No transactions to delete' };
+    }
+
+    // Read all rows: Transaction ID | Customer ID | Customer Name | Date | Amount | Running Balance | Note
+    const data = sh.getRange(2, 1, lastRow - 1, 7).getValues();
+
+    // Normalize helper — strips whitespace, case, and hidden chars
+    const normalize = function(v) {
+      return String(v === null || v === undefined ? '' : v)
+        .replace(/[\u200B-\u200D\uFEFF]/g, '')
+        .replace(/\u00A0/g, ' ')
+        .replace(/\s+/g, '')
+        .trim()
+        .toLowerCase();
+    };
+
+    const targetIdNorm = normalize(transactionId);
+
+    let targetRow = -1;
+    let targetCustomerId = '';
+    let targetAmount = 0;
+    let foundTxnId = '';
+
+    for (let i = 0; i < data.length; i++) {
+      const txnIdNorm = normalize(data[i][0]);
+      if (txnIdNorm === targetIdNorm) {
+        targetRow = i + 2;
+        targetCustomerId = String(data[i][1] || '').trim();
+        targetAmount = Number(data[i][4]) || 0;
+        foundTxnId = String(data[i][0]).trim();
+        break;
+      }
+    }
+
+    if (targetRow === -1) {
+      const sampleIds = [];
+      for (let i = 0; i < Math.min(5, data.length); i++) {
+        sampleIds.push(JSON.stringify(String(data[i][0])));
+      }
+      Logger.log('❌ Txn not found. Searched: ' + JSON.stringify(transactionId));
+      Logger.log('   Normalized: ' + targetIdNorm);
+      Logger.log('   Available sample: ' + sampleIds.join(' | '));
+
+      return {
+        success: false,
+        error: 'Transaction not found.\nSearched: "' + transactionId +
+               '"\nAvailable sample: ' + sampleIds.join(', ')
+      };
+    }
+
+    // Delete the row
+    sh.deleteRow(targetRow);
+
+    // Recalculate running balance for remaining txns of same customer
+    const newLastRow = sh.getLastRow();
+    if (newLastRow >= 2) {
+      const remaining = sh.getRange(2, 1, newLastRow - 1, 7).getValues();
+      let runningBalance = 0;
+      const updates = [];
+
+      for (let i = 0; i < remaining.length; i++) {
+        const custId = String(remaining[i][1] || '').trim();
+        if (custId === targetCustomerId) {
+          const amt = Number(remaining[i][4]) || 0;
+          runningBalance += amt;
+          updates.push({ row: i + 2, balance: runningBalance });
+        }
+      }
+
+      updates.forEach(function(u) {
+        sh.getRange(u.row, 6).setValue(u.balance);
+      });
+    }
+
+    // Update customer's Total Receipts
+    if (targetCustomerId) {
+      const custSh = ss.getSheetByName('Customers');
+      if (custSh) {
+        const custLast = custSh.getLastRow();
+        if (custLast >= 2) {
+          const custData = custSh.getRange(2, 1, custLast - 1, 8).getValues();
+          for (let i = 0; i < custData.length; i++) {
+            const cId = String(custData[i][0] || '').trim();
+            if (cId === targetCustomerId) {
+              const currentReceipts = Number(custData[i][6]) || 0;
+              const newReceipts = Math.max(currentReceipts - targetAmount, 0);
+              custSh.getRange(i + 2, 7).setValue(newReceipts);
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    SpreadsheetApp.flush();
+
+    return {
+      success: true,
+      transactionId: foundTxnId,
+      deletedAmount: targetAmount,
+      customerId: targetCustomerId
+    };
+
+  } catch (err) {
+    Logger.log('deleteCustomerReceiptTransaction ERROR: ' + err.stack);
+    return { success: false, error: err.toString() };
+  }
+}
+
+/* ============================================================
+   OPTIONAL: Rebuild formulas
+   ============================================================ */
+
+function restoreSupplierFormulas() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Suppliers');
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  var formulas = [];
+  for (var i = 2; i <= lastRow; i++) {
+    formulas.push([
+      '=IFERROR(SUMIF(PurchaseOrders!$C:$C, $B' + i + ', PurchaseOrders!$E:$E), 0)',
+      '=IFERROR(SUMIF(Payments!$C:$C, $B' + i + ', Payments!$E:$E), 0)',
+      '=IFERROR(E' + i + '-F' + i + ', 0)'
+    ]);
+  }
+  sheet.getRange(2, 5, formulas.length, 3).setValues(formulas);
+}
+
+function restoreCustomerFormulas() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Customers');
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  var formulas = [];
+  for (var i = 2; i <= lastRow; i++) {
+    formulas.push([
+      '=IFERROR(SUMIF(SaleOrders!$D:$D, $D' + i + ', SaleOrders!$F:$F), 0)',
+      '=IFERROR(SUMIF(ReceiptTransactions!$C:$C, $D' + i + ', ReceiptTransactions!$E:$E), 0)',
+      '=IFERROR(F' + i + '-G' + i + ', 0)'
+    ]);
+  }
+  sheet.getRange(2, 6, formulas.length, 3).setValues(formulas);
+}

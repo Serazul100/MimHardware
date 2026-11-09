@@ -1,0 +1,3532 @@
+// ============================================================================
+// gsreports.gs
+// MIM ERP Reports Backend
+// Compatible with gsindex.gs
+// ============================================================================
+
+
+// ============================================================================
+// SHEET CONSTANTS
+// ============================================================================
+
+var REPORT_SHEETS = {
+  DASHBOARD_BACKUP: 'Dashboard Backup',
+  PURCHASE_ORDERS: 'PurchaseOrders',
+  PURCHASE_ITEMS: 'PurchaseItems',
+  SALE_ORDERS: 'SaleOrders',
+  SALES_DETAILS: 'SalesDetails',
+  CUSTOMERS: 'Customers',
+  SUPPLIERS: 'Suppliers',
+  PRODUCTS: 'Products',
+  INVENTORY: 'InventoryItems',
+  EXPENSES: 'Expenses',
+  CAPITAL: 'Capital',
+  RECEIPTS: 'ReceiptTransactions',
+  PAYMENTS: 'Payments'
+};
+
+
+// ============================================================================
+// BASIC HELPERS
+// ============================================================================
+
+function getSS() {
+  return SpreadsheetApp.getActiveSpreadsheet();
+}
+
+function _reportNumber(value) {
+  if (value === null || value === undefined || value === '') return 0;
+
+  if (typeof value === 'number') {
+    return isFinite(value) ? value : 0;
+  }
+
+  if (value instanceof Date) return 0;
+
+  var text = String(value).trim();
+
+  if (!text) return 0;
+
+  // Accounting style negative number: (1,234.50)
+  var negativeByParens = /^\(.*\)$/.test(text);
+
+  var cleaned = text
+    .replace(/৳/g, '')
+    .replace(/,/g, '')
+    .replace(/[()]/g, '')
+    .replace(/\s/g, '')
+    .trim();
+
+  if (!cleaned) return 0;
+
+  var parsed = parseFloat(cleaned);
+
+  if (!isFinite(parsed)) return 0;
+
+  if (negativeByParens) parsed = -Math.abs(parsed);
+
+  return parsed;
+}
+
+function _reportDateKey(value) {
+  if (value === null || value === undefined || value === '') return '';
+
+  if (Object.prototype.toString.call(value) === '[object Date]') {
+    if (isNaN(value.getTime())) return '';
+
+    return Utilities.formatDate(
+      value,
+      Session.getScriptTimeZone(),
+      'yyyy-MM-dd'
+    );
+  }
+
+  var text = String(value).trim();
+  if (!text) return '';
+
+  var iso = text.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+
+  if (iso) {
+    return iso[1] + '-' +
+      ('0' + iso[2]).slice(-2) + '-' +
+      ('0' + iso[3]).slice(-2);
+  }
+
+  var dmy = text.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+
+  if (dmy) {
+    return dmy[3] + '-' +
+      ('0' + dmy[2]).slice(-2) + '-' +
+      ('0' + dmy[1]).slice(-2);
+  }
+
+  var parsed = new Date(text);
+
+  if (!isNaN(parsed.getTime())) {
+    return Utilities.formatDate(
+      parsed,
+      Session.getScriptTimeZone(),
+      'yyyy-MM-dd'
+    );
+  }
+
+  return '';
+}
+
+function parseDateSafe(value) {
+  var key = _reportDateKey(value);
+
+  if (!key) return null;
+
+  var date = new Date(key + 'T00:00:00');
+
+  return isNaN(date.getTime()) ? null : date;
+}
+
+function formatDate(value) {
+  var key = _reportDateKey(value);
+  return key || '';
+}
+
+function getDateRangeFilter(startDate, endDate) {
+  var startKey = _reportDateKey(startDate);
+  var endKey = _reportDateKey(endDate);
+
+  var start = startKey
+    ? new Date(startKey + 'T00:00:00')
+    : new Date('1900-01-01T00:00:00');
+
+  var end = endKey
+    ? new Date(endKey + 'T23:59:59')
+    : new Date('2999-12-31T23:59:59');
+
+  if (start > end) {
+    var temp = start;
+    start = end;
+    end = temp;
+  }
+
+  return {
+    start: start,
+    end: end,
+    startKey: _reportDateKey(start),
+    endKey: _reportDateKey(end)
+  };
+}
+
+function isDateInRange(value, range) {
+  var date = parseDateSafe(value);
+
+  return !!date &&
+    date.getTime() >= range.start.getTime() &&
+    date.getTime() <= range.end.getTime();
+}
+
+function getSheetData(sheetName) {
+  try {
+    var sheet = getSS().getSheetByName(sheetName);
+
+    if (!sheet) return [];
+
+    var lastRow = sheet.getLastRow();
+    var lastColumn = sheet.getLastColumn();
+
+    if (lastRow < 2 || lastColumn < 1) return [];
+
+    return sheet
+      .getRange(1, 1, lastRow, lastColumn)
+      .getValues();
+
+  } catch (error) {
+    console.error('getSheetData error: ' + sheetName, error);
+    return [];
+  }
+}
+
+function getSheetObjects(sheetName) {
+  var values = getSheetData(sheetName);
+
+  if (!values || values.length < 2) return [];
+
+  var headers = values[0].map(function(header) {
+    return String(header || '').trim();
+  });
+
+  return values.slice(1).map(function(row) {
+    var object = {};
+
+    headers.forEach(function(header, index) {
+      if (header) object[header] = row[index];
+    });
+
+    return object;
+  });
+}
+
+function getHeaderIndex(headers, names) {
+  headers = headers || [];
+  names = names || [];
+
+  var normalized = names.map(function(name) {
+    return String(name).trim().toLowerCase();
+  });
+
+  for (var i = 0; i < headers.length; i++) {
+    var header = String(headers[i] || '').trim().toLowerCase();
+
+    if (normalized.indexOf(header) !== -1) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+function getColumnIndex(headers, names, fallback) {
+  var index = getHeaderIndex(headers, names);
+  return index === -1 ? fallback : index;
+}
+
+function getRowsWithHeaders(sheetName) {
+  var values = getSheetData(sheetName);
+
+  if (!values.length) {
+    return {
+      headers: [],
+      rows: []
+    };
+  }
+
+  return {
+    headers: values[0],
+    rows: values.slice(1)
+  };
+}
+
+function _reportText(value) {
+  return String(value === null || value === undefined ? '' : value).trim();
+}
+
+function _reportContains(value, search) {
+  return _reportText(value)
+    .toLowerCase()
+    .indexOf(_reportText(search).toLowerCase()) !== -1;
+}
+
+function _getReportValue(row, aliases, defaultValue) {
+  if (!row) return defaultValue;
+
+  aliases = aliases || [];
+
+  for (var i = 0; i < aliases.length; i++) {
+    var key = aliases[i];
+
+    if (
+      Object.prototype.hasOwnProperty.call(row, key) &&
+      row[key] !== '' &&
+      row[key] !== null &&
+      row[key] !== undefined
+    ) {
+      return row[key];
+    }
+  }
+
+  return defaultValue;
+}
+
+function _getColumnValue(row, headers, aliases, fallback) {
+  var index = getHeaderIndex(headers, aliases);
+
+  if (index === -1) return fallback;
+
+  return row[index];
+}
+
+
+// ============================================================================
+// COLUMN DEFINITIONS
+// ============================================================================
+
+var REPORT_COLUMNS = {
+  SALE_ORDERS: {
+    date: ['SO Date', 'Date'],
+    id: ['SO ID', 'Sales Order ID'],
+    customerId: ['Customer ID', 'Customers ID'],
+    customer: ['Customer Name', 'Customer'],
+    invoice: ['Invoice Num', 'Invoice No', 'Invoice'],
+    total: ['Total SO Amount', 'Grand Total', 'Total', 'Amount'],
+    received: ['Total Received', 'Received', 'Payment'],
+    balance: ['SO Balance', 'Balance', 'Due'],
+    status: ['Status']
+  },
+
+  SALES_DETAILS: {
+    date: ['Date', 'SO Date'],
+    soId: ['SO ID', 'Sales Order ID'],
+    product: ['Product Name', 'Item Name', 'Product'],
+    qty: ['QTY Sold', 'QTY', 'Quantity'],
+    rate: ['Unit Price', 'Rate', 'Selling Price'],
+    total: ['Total Sales', 'Line Total', 'Total']
+  },
+
+  PURCHASE_ORDERS: {
+    id: ['PO ID', 'Purchase Order ID'],
+    date: ['Date', 'PO Date'],
+    supplier: ['Supplier Name', 'Supplier', 'Vendor'],
+    bill: ['Bill No', 'Bill Number', 'Invoice No'],
+    total: ['Grand Total', 'Total', 'Amount']
+  },
+
+  PURCHASE_ITEMS: {
+    poId: ['PO ID', 'Purchase Order ID'],
+    date: ['Date'],
+    supplier: ['Supplier Name', 'Supplier'],
+    bill: ['Bill No', 'Bill Number'],
+    product: ['Product Name', 'Item Name', 'Product'],
+    details: ['Products details', 'Product Details', 'Details'],
+    qty: ['Qty', 'QTY', 'Quantity'],
+    price: ['Price', 'Unit Price', 'Cost'],
+    total: ['Total', 'Line Total']
+  },
+
+  CUSTOMERS: {
+    id: ['Customers ID', 'Customer ID'],
+    shop: ['Shop Name', 'Shop'],
+    mobile: ['Mobile Number', 'Mobile', 'Phone'],
+    name: ['Customer Name', 'Name', 'Customer'],
+    address: ['Customer Address', 'Address'],
+    totalSales: ['Total Sales'],
+    receipts: ['Total Receipts', 'Received'],
+    balance: ['Balance Receivable', 'Receivable', 'Due', 'Balance']
+  },
+
+  SUPPLIERS: {
+    id: ['Supplier ID'],
+    name: ['Supplier Name', 'Supplier', 'Vendor'],
+    contact: ['Supplier Contact', 'Contact', 'Phone'],
+    address: ['Supplier Address', 'Address'],
+    purchases: ['Total Purchases', 'Purchases'],
+    payments: ['Total Payments', 'Total Payment', 'Payments', 'Paid'],
+    balance: ['Balance Payable', 'Payable', 'Due', 'Balance']
+  },
+
+  PRODUCTS: {
+    hsn: ['HSN Code', 'HSN'],
+    name: ['Product Name', 'Item Name', 'Product'],
+    cost: ['Cost', 'Purchase Price', 'Buying Price'],
+    selling: ['Selling Price', 'Sale Price', 'Price'],
+    stock: ['Stock', 'Remaining QTY', 'Remaining'],
+    reorder: ['Reorder Level', 'Reorder']
+  },
+
+  INVENTORY: {
+    product: ['Product Name', 'Item Name', 'Product'],
+    purchased: ['QTY Purchased', 'Purchased', 'Stock In'],
+    sold: ['QTY Sold', 'Sold', 'Stock Out'],
+    remaining: ['Remaining QTY', 'Remaining', 'Available'],
+    reorder: ['Reorder Level', 'Reorder']
+  },
+
+  EXPENSES: {
+    id: ['ID', 'Expense ID'],
+    date: ['Date', 'Expense Date'],
+    category: ['Category', 'Type', 'Expense Type'],
+    amount: ['Amount', 'Expense Amount', 'Total'],
+    description: ['Description', 'Details', 'Expense'],
+    payment: ['Payment Method', 'Method']
+  },
+
+  CAPITAL: {
+    date: ['Date'],
+    type: ['Type', 'Transaction Type', 'Entry Type'],
+    amount: ['Amount'],
+    description: ['Description'],
+    running: ['Running Balance'],
+    payment: ['Payment Method']
+  },
+
+  RECEIPTS: {
+    id: ['Transaction ID', 'Receipt ID'],
+    customerId: ['Customer ID'],
+    customer: ['Customer Name', 'Customer'],
+    date: ['Date', 'Receipt Date', 'Payment Date'],
+    amount: ['Amount', 'Receipt Amount', 'Received', 'Received Amount'],
+    note: ['Note', 'Description']
+  },
+
+  PAYMENTS: {
+    id: ['Payment ID'],
+    supplierId: ['Supplier ID'],
+    supplier: ['Supplier Name', 'Supplier'],
+    date: ['Date', 'Payment Date'],
+    amount: ['Amount', 'Payment Amount', 'Paid'],
+    note: ['Note', 'Description']
+  }
+};
+
+
+// ============================================================================
+// PRODUCT COST ENGINE  (Batch-wise / Weighted Average Cost)
+// ============================================================================
+//
+// কেন এই পরিবর্তন?
+// -----------------
+// আগে শুধু Products sheet এর "Cost" column থেকে cost নেওয়া হত।
+// কিন্তু একই প্রোডাক্ট বিভিন্ন দামে (120, 130, 140 ...) কিনলে
+// প্রতি লাইনে সঠিক profit বের করা যেত না।
+//
+// এখন PurchaseItems sheet থেকে প্রতিটি batch (Qty + Price) নিয়ে
+// FIFO (First-In-First-Out) পদ্ধতিতে cost হিসাব করা হয়।
+// ফলে ১২ পিস @ ১২০ + ১২ পিস @ ১৩০ = ২৪ পিসের exact cost পাওয়া যায়।
+//
+// একইসাথে "Products" sheet এর cost কে fallback হিসেবে রাখা হয়েছে,
+// যাতে কোনো purchase record না থাকলেও profit বের করা যায়।
+//
+// ============================================================================
+
+/**
+ * PurchaseItems থেকে প্রতিটি product এর batch-wise purchase history বের করে।
+ * Return: { "product name lowercase": [ {date, qty, price}, ... ] (sorted by date) }
+ */
+function _getProductPurchaseBatches() {
+  var table = getRowsWithHeaders(REPORT_SHEETS.PURCHASE_ITEMS);
+  var batches = {};
+
+  if (!table.rows.length) return batches;
+
+  table.rows.forEach(function(row) {
+    var product = _reportText(_getColumnValue(
+      row,
+      table.headers,
+      REPORT_COLUMNS.PURCHASE_ITEMS.product,
+      ''
+    ));
+
+    if (!product) return;
+
+    var qty = _reportNumber(_getColumnValue(
+      row,
+      table.headers,
+      REPORT_COLUMNS.PURCHASE_ITEMS.qty,
+      0
+    ));
+
+    var price = _reportNumber(_getColumnValue(
+      row,
+      table.headers,
+      REPORT_COLUMNS.PURCHASE_ITEMS.price,
+      0
+    ));
+
+    var date = _getColumnValue(
+      row,
+      table.headers,
+      REPORT_COLUMNS.PURCHASE_ITEMS.date,
+      ''
+    );
+
+    if (qty <= 0) return;
+
+    var key = product.toLowerCase();
+
+    if (!batches[key]) batches[key] = [];
+
+    batches[key].push({
+      dateKey: _reportDateKey(date),
+      qty: qty,
+      price: price
+    });
+  });
+
+  // FIFO-র জন্য তারিখ অনুযায়ী sort
+  Object.keys(batches).forEach(function(key) {
+    batches[key].sort(function(a, b) {
+      if (a.dateKey === b.dateKey) return 0;
+      if (!a.dateKey) return 1;
+      if (!b.dateKey) return -1;
+      return a.dateKey < b.dateKey ? -1 : 1;
+    });
+  });
+
+  return batches;
+}
+
+/**
+ * একটা নির্দিষ্ট product এর জন্য purchase batch থেকে FIFO cost বের করে।
+ * Products sheet এর "Cost" কে fallback হিসেবে ব্যবহার করে।
+ *
+ * মোট qtySold পর্যন্ত যত batch লাগে, তাদের actual price দিয়ে cost হিসাব হয়।
+ * বাকি থাকলে সেই batch গুলোতে consume করে weighted average বের করা হয়।
+ *
+ * Return: মোট cost (number)
+ */
+function _calculateFifoCost(productName, qtySold) {
+  qtySold = _reportNumber(qtySold);
+  if (qtySold <= 0) return 0;
+
+  var product = _reportText(productName);
+  if (!product) return 0;
+
+  var key = product.toLowerCase();
+  var batches = _getProductPurchaseBatches()[key] || [];
+
+  // কোনো purchase record নেই → Products sheet fallback
+  if (!batches.length) {
+    var fallbackCost = _reportNumber(getProductCost(product));
+    return fallbackCost * qtySold;
+  }
+
+  var remaining = qtySold;
+  var totalCost = 0;
+  var consumedAny = false;
+
+  for (var i = 0; i < batches.length && remaining > 0; i++) {
+    var batch = batches[i];
+    if (batch.qty <= 0) continue;
+
+    var take = Math.min(batch.qty, remaining);
+    totalCost += take * batch.price;
+    remaining -= take;
+    consumedAny = true;
+  }
+
+  // সব batch শেষ, তবুও remaining থাকলে শেষ batch-এর দামে হিসাব
+  if (remaining > 0) {
+    var lastPrice = batches.length
+      ? batches[batches.length - 1].price
+      : _reportNumber(getProductCost(product));
+
+    totalCost += remaining * lastPrice;
+  }
+
+  if (!consumedAny && totalCost === 0) {
+    // safety net: purchase batch খালি থাকলে fallback
+    totalCost = _reportNumber(getProductCost(product)) * qtySold;
+  }
+
+  return totalCost;
+}
+
+/**
+ * Purchase batch গুলোর weighted average cost বের করে।
+ * (মোট purchase amount ÷ মোট purchased qty)
+ */
+function _getWeightedAvgCostMap() {
+  var batches = _getProductPurchaseBatches();
+  var map = {};
+
+  Object.keys(batches).forEach(function(key) {
+    var totalQty = 0;
+    var totalAmt = 0;
+
+    batches[key].forEach(function(b) {
+      totalQty += b.qty;
+      totalAmt += b.qty * b.price;
+    });
+
+    if (totalQty > 0) {
+      map[key] = totalAmt / totalQty;
+    }
+  });
+
+  return map;
+}
+
+
+// ============================================================================
+// PRODUCT HELPERS  (Updated to use Batch / Weighted Avg Cost)
+// ============================================================================
+
+/**
+ * Backward-compatible: পুরনো কল যাতে ভেঙে না যায়।
+ * এখন এটি PurchaseItems batch থেকে weighted average cost দেয়,
+ * না থাকলে Products sheet এর cost দেয়।
+ */
+function getProductCostMap() {
+  // Products sheet এর fallback cost
+  var rows = getSheetObjects(REPORT_SHEETS.PRODUCTS);
+  var fallback = {};
+
+  rows.forEach(function(row) {
+    var name = _getReportValue(
+      row,
+      REPORT_COLUMNS.PRODUCTS.name,
+      ''
+    );
+
+    if (!name) return;
+
+    var key = _reportText(name).toLowerCase();
+
+    fallback[key] = _reportNumber(
+      _getReportValue(
+        row,
+        REPORT_COLUMNS.PRODUCTS.cost,
+        0
+      )
+    );
+  });
+
+  // PurchaseItems থেকে weighted average cost override
+  var weighted = _getWeightedAvgCostMap();
+
+  Object.keys(weighted).forEach(function(key) {
+    fallback[key] = weighted[key];
+  });
+
+  return fallback;
+}
+
+function getProductCost(productName) {
+  var map = getProductCostMap();
+  return map[_reportText(productName).toLowerCase()] || 0;
+}
+
+/**
+ * SalesDetails-এর প্রতিটি লাইনের জন্য actual cost (FIFO batch ভিত্তিক)
+ * এবং profit বের করার helper।
+ */
+function _getSalesDetailProfitMap(startDate, endDate) {
+  var range = getDateRangeFilter(startDate, endDate);
+  var table = getRowsWithHeaders(REPORT_SHEETS.SALES_DETAILS);
+  var result = [];
+
+  table.rows.forEach(function(row, index) {
+    var date = _getColumnValue(
+      row,
+      table.headers,
+      REPORT_COLUMNS.SALES_DETAILS.date,
+      ''
+    );
+
+    if (!isDateInRange(date, range)) return;
+
+    var soId = _reportText(_getColumnValue(
+      row,
+      table.headers,
+      REPORT_COLUMNS.SALES_DETAILS.soId,
+      ''
+    ));
+
+    var product = _reportText(_getColumnValue(
+      row,
+      table.headers,
+      REPORT_COLUMNS.SALES_DETAILS.product,
+      ''
+    ));
+
+    var qty = _reportNumber(_getColumnValue(
+      row,
+      table.headers,
+      REPORT_COLUMNS.SALES_DETAILS.qty,
+      0
+    ));
+
+    var rate = _reportNumber(_getColumnValue(
+      row,
+      table.headers,
+      REPORT_COLUMNS.SALES_DETAILS.rate,
+      0
+    ));
+
+    var totalSales = _reportNumber(_getColumnValue(
+      row,
+      table.headers,
+      REPORT_COLUMNS.SALES_DETAILS.total,
+      0
+    ));
+
+    if (totalSales === 0 && qty && rate) {
+      totalSales = qty * rate;
+    }
+
+    // FIFO cost (batch ভিত্তিক)
+    var cogs = _calculateFifoCost(product, qty);
+
+    var profit = totalSales - cogs;
+
+    result.push({
+      rowIndex: index,
+      soId: soId,
+      date: formatDate(date),
+      product: product,
+      qty: qty,
+      rate: rate,
+      totalSales: totalSales,
+      cogs: cogs,
+      profit: profit
+    });
+  });
+
+  return result;
+}
+
+
+// ============================================================================
+// SALES REPORT
+// ============================================================================
+
+function getSalesReport(startDate, endDate, customerFilter, searchTerm) {
+  try {
+    var table = getRowsWithHeaders(REPORT_SHEETS.SALE_ORDERS);
+
+    if (!table.rows.length) {
+      return {
+        summary: {},
+        data: [],
+        message: 'No sales data found.'
+      };
+    }
+
+    var range = getDateRangeFilter(startDate, endDate);
+    var rows = table.rows;
+    var headers = table.headers;
+
+    var result = [];
+    var totalAmount = 0;
+    var totalReceived = 0;
+    var totalDue = 0;
+    var highest = 0;
+    var lowest = null;
+
+    rows.forEach(function(row) {
+      var date = _getColumnValue(
+        row,
+        headers,
+        REPORT_COLUMNS.SALE_ORDERS.date,
+        ''
+      );
+
+      if (!isDateInRange(date, range)) return;
+
+      var id = _getColumnValue(
+        row,
+        headers,
+        REPORT_COLUMNS.SALE_ORDERS.id,
+        ''
+      );
+
+      var invoice = _getColumnValue(
+        row,
+        headers,
+        REPORT_COLUMNS.SALE_ORDERS.invoice,
+        ''
+      );
+
+      var customer = _getColumnValue(
+        row,
+        headers,
+        REPORT_COLUMNS.SALE_ORDERS.customer,
+        ''
+      );
+
+      var customerText = _reportText(customer).toLowerCase();
+      var filterText = _reportText(customerFilter).toLowerCase();
+      var searchText = _reportText(searchTerm).toLowerCase();
+
+      if (filterText && customerText.indexOf(filterText) === -1) {
+        return;
+      }
+
+      var searchable = [
+        _reportText(id),
+        _reportText(invoice),
+        customerText
+      ].join(' ').toLowerCase();
+
+      if (searchText && searchable.indexOf(searchText) === -1) {
+        return;
+      }
+
+      var total = _reportNumber(_getColumnValue(
+        row,
+        headers,
+        REPORT_COLUMNS.SALE_ORDERS.total,
+        0
+      ));
+
+      var received = _reportNumber(_getColumnValue(
+        row,
+        headers,
+        REPORT_COLUMNS.SALE_ORDERS.received,
+        0
+      ));
+
+      var balanceValue = _getColumnValue(
+        row,
+        headers,
+        REPORT_COLUMNS.SALE_ORDERS.balance,
+        ''
+      );
+
+      var balance = balanceValue === ''
+        ? Math.max(total - received, 0)
+        : _reportNumber(balanceValue);
+
+      var status = _getColumnValue(
+        row,
+        headers,
+        REPORT_COLUMNS.SALE_ORDERS.status,
+        balance > 0 ? 'Pending' : 'Paid'
+      );
+
+      result.push({
+        id: _reportText(id),
+        invoice: _reportText(invoice),
+        customer: _reportText(customer),
+        date: formatDate(date),
+        items: 0,
+        total: total,
+        received: received,
+        balance: balance,
+        status: _reportText(status)
+      });
+
+      totalAmount += total;
+      totalReceived += received;
+      totalDue += balance;
+
+      if (total > highest) highest = total;
+      if (lowest === null || total < lowest) lowest = total;
+    });
+
+    var details = getRowsWithHeaders(REPORT_SHEETS.SALES_DETAILS);
+    var itemCountMap = {};
+
+    details.rows.forEach(function(row) {
+      var soId = _getColumnValue(
+        row,
+        details.headers,
+        REPORT_COLUMNS.SALES_DETAILS.soId,
+        ''
+      );
+
+      var key = _reportText(soId);
+
+      if (key) {
+        itemCountMap[key] = (itemCountMap[key] || 0) + 1;
+      }
+    });
+
+    result.forEach(function(item) {
+      item.items = itemCountMap[item.id] || 0;
+    });
+
+    return {
+      summary: {
+        totalInvoices: result.length,
+        totalAmount: totalAmount,
+        totalReceived: totalReceived,
+        totalDue: totalDue,
+        averageSale: result.length ? totalAmount / result.length : 0,
+        highestSale: highest,
+        lowestSale: lowest === null ? 0 : lowest
+      },
+      data: result,
+      message: result.length ? 'OK' : 'No sales in this date range.'
+    };
+
+  } catch (error) {
+    return {
+      error: 'Error in getSalesReport: ' + error.message
+    };
+  }
+}
+
+
+// ============================================================================
+// PURCHASE REPORT
+// ============================================================================
+
+function getPurchaseReport(startDate, endDate, supplierFilter, searchTerm) {
+  try {
+    var table = getRowsWithHeaders(REPORT_SHEETS.PURCHASE_ORDERS);
+
+    if (!table.rows.length) {
+      return {
+        summary: {},
+        data: [],
+        message: 'No purchase data found.'
+      };
+    }
+
+    var range = getDateRangeFilter(startDate, endDate);
+    var result = [];
+    var totalAmount = 0;
+    var todayKey = _reportDateKey(new Date());
+    var monthKey = todayKey.substring(0, 7);
+    var todayTotal = 0;
+    var monthlyTotal = 0;
+
+    table.rows.forEach(function(row) {
+      var date = _getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.PURCHASE_ORDERS.date,
+        ''
+      );
+
+      if (!isDateInRange(date, range)) return;
+
+      var id = _getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.PURCHASE_ORDERS.id,
+        ''
+      );
+
+      var supplier = _getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.PURCHASE_ORDERS.supplier,
+        ''
+      );
+
+      var bill = _getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.PURCHASE_ORDERS.bill,
+        ''
+      );
+
+      var supplierText = _reportText(supplier).toLowerCase();
+      var supplierSearch = _reportText(supplierFilter).toLowerCase();
+      var searchText = _reportText(searchTerm).toLowerCase();
+
+      if (supplierSearch && supplierText.indexOf(supplierSearch) === -1) {
+        return;
+      }
+
+      var searchable = [
+        _reportText(id),
+        _reportText(bill),
+        supplierText
+      ].join(' ').toLowerCase();
+
+      if (searchText && searchable.indexOf(searchText) === -1) {
+        return;
+      }
+
+      var amount = _reportNumber(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.PURCHASE_ORDERS.total,
+        0
+      ));
+
+      var dateKey = _reportDateKey(date);
+
+      result.push({
+        id: _reportText(id),
+        supplier: _reportText(supplier),
+        billNo: _reportText(bill),
+        date: formatDate(date),
+        amount: amount,
+        status: 'Delivered'
+      });
+
+      totalAmount += amount;
+
+      if (dateKey === todayKey) todayTotal += amount;
+      if (dateKey.substring(0, 7) === monthKey) monthlyTotal += amount;
+    });
+
+    return {
+      summary: {
+        totalPurchase: totalAmount,
+        todayPurchase: todayTotal,
+        monthlyPurchase: monthlyTotal,
+        averagePurchase: result.length ? totalAmount / result.length : 0
+      },
+      data: result,
+      message: result.length
+        ? 'OK'
+        : 'No purchases in this date range.'
+    };
+
+  } catch (error) {
+    return {
+      error: 'Error in getPurchaseReport: ' + error.message
+    };
+  }
+}
+
+
+// ============================================================================
+// PROFIT AND LOSS  (UPDATED: FIFO Batch Cost)
+// ============================================================================
+
+// ============================================================================
+// PROFIT AND LOSS  (Uses SalesDetails "Profit" column directly)
+// ============================================================================
+
+function getProfitLoss(startDate, endDate) {
+  try {
+    var range = getDateRangeFilter(startDate, endDate);
+
+    var salesTable = getRowsWithHeaders(REPORT_SHEETS.SALE_ORDERS);
+    var detailsTable = getRowsWithHeaders(REPORT_SHEETS.SALES_DETAILS);
+    var expensesTable = getRowsWithHeaders(REPORT_SHEETS.EXPENSES);
+
+    // -------- Total Sales from SaleOrders --------
+    var totalSales = 0;
+    salesTable.rows.forEach(function(row) {
+      var date = _getColumnValue(
+        row, salesTable.headers,
+        REPORT_COLUMNS.SALE_ORDERS.date, ''
+      );
+      if (!isDateInRange(date, range)) return;
+
+      totalSales += _reportNumber(_getColumnValue(
+        row, salesTable.headers,
+        REPORT_COLUMNS.SALE_ORDERS.total, 0
+      ));
+    });
+
+    // -------- COGS & Gross Profit from SalesDetails "Profit" column --------
+    // ⚠️ SalesDetails এ Profit column থাকলে সেটার sum ব্যবহার করি
+    var detailsTable2 = getRowsWithHeaders(REPORT_SHEETS.SALES_DETAILS);
+    var profitHeaderIdx = getHeaderIndex(detailsTable2.headers, ['Profit']);
+
+    var totalProfit = 0;
+    var totalLineSales = 0;
+    var totalCogs = 0;
+    var detailRows = [];
+
+    detailsTable2.rows.forEach(function(row) {
+      var date = _getColumnValue(
+        row, detailsTable2.headers,
+        REPORT_COLUMNS.SALES_DETAILS.date, ''
+      );
+      if (!isDateInRange(date, range)) return;
+
+      var product = _reportText(_getColumnValue(
+        row, detailsTable2.headers,
+        REPORT_COLUMNS.SALES_DETAILS.product, ''
+      ));
+      var qty = _reportNumber(_getColumnValue(
+        row, detailsTable2.headers,
+        REPORT_COLUMNS.SALES_DETAILS.qty, 0
+      ));
+      var rate = _reportNumber(_getColumnValue(
+        row, detailsTable2.headers,
+        REPORT_COLUMNS.SALES_DETAILS.rate, 0
+      ));
+      var lineSales = _reportNumber(_getColumnValue(
+        row, detailsTable2.headers,
+        REPORT_COLUMNS.SALES_DETAILS.total, 0
+      ));
+      if (lineSales === 0 && qty && rate) lineSales = qty * rate;
+
+      // ✅ L column (Profit) থেকে সরাসরি নিই
+      var lineProfit = 0;
+      if (profitHeaderIdx !== -1) {
+        lineProfit = _reportNumber(row[profitHeaderIdx]);
+      } else {
+        // Profit column না থাকলে FIFO দিয়ে fallback
+        lineProfit = lineSales - _calculateFifoCost(product, qty);
+      }
+
+      var lineCogs = lineSales - lineProfit;
+
+      totalProfit += lineProfit;
+      totalLineSales += lineSales;
+      totalCogs += lineCogs;
+
+      detailRows.push({
+        date: formatDate(date),
+        soId: _reportText(_getColumnValue(
+          row, detailsTable2.headers,
+          REPORT_COLUMNS.SALES_DETAILS.soId, ''
+        )),
+        product: product,
+        qty: qty,
+        rate: rate,
+        sales: lineSales,
+        cost: lineCogs,
+        profit: lineProfit
+      });
+    });
+
+    // -------- Expenses --------
+    var expenseBreakdown = {};
+    var expenseRows = [];
+    var totalExpenses = 0;
+
+    expensesTable.rows.forEach(function(row) {
+      var date = _getColumnValue(
+        row, expensesTable.headers,
+        REPORT_COLUMNS.EXPENSES.date, ''
+      );
+      if (!isDateInRange(date, range)) return;
+
+      var amount = _reportNumber(_getColumnValue(
+        row, expensesTable.headers,
+        REPORT_COLUMNS.EXPENSES.amount, 0
+      ));
+
+      var category = _reportText(_getColumnValue(
+        row, expensesTable.headers,
+        REPORT_COLUMNS.EXPENSES.category, 'Miscellaneous'
+      )) || 'Miscellaneous';
+
+      var description = _reportText(_getColumnValue(
+        row, expensesTable.headers,
+        REPORT_COLUMNS.EXPENSES.description, ''
+      ));
+
+      totalExpenses += amount;
+      expenseBreakdown[category] = (expenseBreakdown[category] || 0) + amount;
+
+      expenseRows.push({
+        date: formatDate(date),
+        category: category,
+        description: description,
+        amount: amount
+      });
+    });
+
+    // -------- Summary --------
+    // Gross Profit = SalesDetails এর Profit column sum (এটাই FIFO-based actual profit)
+    var grossProfit = totalProfit;
+    var netProfit = grossProfit - totalExpenses;
+    var margin = totalSales > 0 ? (netProfit / totalSales) * 100 : 0;
+
+    var plData = [
+      { description: 'Total Sales', amount: totalSales, type: 'Income' },
+      { description: 'Cost of Goods Sold', amount: -totalCogs, type: 'Expense' },
+      { description: 'Gross Profit', amount: grossProfit, type: 'Income' }
+    ];
+
+    Object.keys(expenseBreakdown).sort().forEach(function(category) {
+      plData.push({
+        description: category + ' Expense',
+        amount: -expenseBreakdown[category],
+        type: 'Expense'
+      });
+    });
+
+    plData.push({
+      description: 'Net Profit',
+      amount: netProfit,
+      type: 'Income'
+    });
+
+    return {
+      summary: {
+        grossProfit: grossProfit,
+        expenses: totalExpenses,
+        netProfit: netProfit,
+        margin: margin,
+        cogs: totalCogs
+      },
+      data: plData,
+      details: detailRows,
+      expenses: expenseRows,
+      message: 'OK'
+    };
+
+  } catch (error) {
+    return {
+      error: 'Error in getProfitLoss: ' + error.message
+    };
+  }
+}
+
+// ============================================================================
+// SALES DETAIL WITH PROFIT  (New – SalesDetails L Column এর সমতুল্য)
+// ============================================================================
+//
+// এই function টি SalesDetails sheet এর প্রতিটি লাইনের জন্য
+// FIFO batch cost হিসাব করে profit বের করে।
+// এটাই সরাসরি L column এ লিখতে পারবেন অথবা UI তে দেখাতে পারবেন।
+//
+// ============================================================================
+
+function getSalesDetailsWithProfit(startDate, endDate, searchTerm) {
+  try {
+    var range = getDateRangeFilter(startDate, endDate);
+    var table = getRowsWithHeaders(REPORT_SHEETS.SALES_DETAILS);
+    var search = _reportText(searchTerm).toLowerCase();
+
+    var result = [];
+    var totals = {
+      sales: 0,
+      cost: 0,
+      profit: 0,
+      qty: 0
+    };
+
+    table.rows.forEach(function(row) {
+      var date = _getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.SALES_DETAILS.date,
+        ''
+      );
+
+      if (!isDateInRange(date, range)) return;
+
+      var soId = _reportText(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.SALES_DETAILS.soId,
+        ''
+      ));
+
+      var product = _reportText(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.SALES_DETAILS.product,
+        ''
+      ));
+
+      var searchable = [soId, product].join(' ').toLowerCase();
+      if (search && searchable.indexOf(search) === -1) return;
+
+      var qty = _reportNumber(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.SALES_DETAILS.qty,
+        0
+      ));
+
+      var rate = _reportNumber(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.SALES_DETAILS.rate,
+        0
+      ));
+
+      var lineTotal = _reportNumber(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.SALES_DETAILS.total,
+        0
+      ));
+
+      if (lineTotal === 0 && qty && rate) {
+        lineTotal = qty * rate;
+      }
+
+      // FIFO batch cost
+      var cogs = _calculateFifoCost(product, qty);
+      var profit = lineTotal - cogs;
+
+      totals.sales += lineTotal;
+      totals.cost += cogs;
+      totals.profit += profit;
+      totals.qty += qty;
+
+      result.push({
+        date: formatDate(date),
+        soId: soId,
+        product: product,
+        qty: qty,
+        rate: rate,
+        totalSales: lineTotal,
+        costPrice: cogs,          // actual FIFO cost
+        profit: profit,           // L column value
+        profitMargin: lineTotal > 0
+          ? (profit / lineTotal) * 100
+          : 0
+      });
+    });
+
+    return {
+      data: result,
+      summary: {
+        totalSales: totals.sales,
+        totalCost: totals.cost,
+        grossProfit: totals.profit,
+        totalQty: totals.qty,
+        totalRows: result.length,
+        margin: totals.sales > 0
+          ? (totals.profit / totals.sales) * 100
+          : 0
+      },
+      message: result.length ? 'OK' : 'No sales details found.'
+    };
+
+  } catch (error) {
+    return {
+      error: 'Error in getSalesDetailsWithProfit: ' + error.message
+    };
+  }
+}
+
+
+// ============================================================================
+// SALES DETAILS PROFIT WRITER
+// ============================================================================
+//
+// SalesDetails sheet এর L column ("Profit") এ FIFO ভিত্তিক profit
+// স্বয়ংক্রিয়ভাবে লিখে দেয়। H = Qty, I = Rate, J = TotalSales,
+// K = TotalPrice; এবং L = Profit.
+//
+// ⚠️ সতর্কতা: এটা data overwrite করে। একটা backup নিয়ে নিন।
+//
+// ============================================================================
+
+function writeSalesDetailsProfitToSheet() {
+  try {
+    var ss = getSS();
+    var sheet = ss.getSheetByName(REPORT_SHEETS.SALES_DETAILS);
+
+    if (!sheet) {
+      return { error: 'SalesDetails sheet not found.' };
+    }
+
+    var lastRow = sheet.getLastRow();
+    var lastCol = sheet.getLastColumn();
+
+    if (lastRow < 2) {
+      return { success: true, updated: 0 };
+    }
+
+    var values = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+    var headers = values[0];
+
+    // Header এর নাম থেকে column index বের করি
+    var dateIdx = getHeaderIndex(headers, REPORT_COLUMNS.SALES_DETAILS.date);
+    var productIdx = getHeaderIndex(headers, REPORT_COLUMNS.SALES_DETAILS.product);
+    var qtyIdx = getHeaderIndex(headers, REPORT_COLUMNS.SALES_DETAILS.qty);
+    var rateIdx = getHeaderIndex(headers, REPORT_COLUMNS.SALES_DETAILS.rate);
+    var totalIdx = getHeaderIndex(headers, REPORT_COLUMNS.SALES_DETAILS.total);
+
+    // Profit column – না থাকলে L (index 11) এ লিখব
+    var profitIdx = getHeaderIndex(headers, ['Profit']);
+
+    if (profitIdx === -1) {
+      profitIdx = 11; // L column
+      // header লিখে দিই
+      sheet.getRange(1, profitIdx + 1).setValue('Profit');
+    }
+
+    var updates = [];
+
+    for (var i = 1; i < values.length; i++) {
+      var row = values[i];
+
+      var product = productIdx !== -1
+        ? _reportText(row[productIdx])
+        : '';
+
+      var qty = qtyIdx !== -1
+        ? _reportNumber(row[qtyIdx])
+        : 0;
+
+      var rate = rateIdx !== -1
+        ? _reportNumber(row[rateIdx])
+        : 0;
+
+      var totalSales = totalIdx !== -1
+        ? _reportNumber(row[totalIdx])
+        : 0;
+
+      if (totalSales === 0 && qty && rate) {
+        totalSales = qty * rate;
+      }
+
+      var cogs = _calculateFifoCost(product, qty);
+      var profit = totalSales - cogs;
+
+      updates.push([profit]);
+    }
+
+    if (updates.length) {
+      sheet
+        .getRange(2, profitIdx + 1, updates.length, 1)
+        .setValues(updates);
+    }
+
+    return {
+      success: true,
+      updated: updates.length,
+      column: profitIdx + 1
+    };
+
+  } catch (error) {
+    return {
+      error: 'Error writing profit: ' + error.message
+    };
+  }
+}
+
+
+// ============================================================================
+// CUSTOMER REPORT
+// ============================================================================
+
+function getCustomerReport(searchTerm) {
+  try {
+    var table = getRowsWithHeaders(REPORT_SHEETS.CUSTOMERS);
+    var search = _reportText(searchTerm).toLowerCase();
+    var result = [];
+
+    table.rows.forEach(function(row) {
+      var name = _getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.CUSTOMERS.name,
+        ''
+      );
+
+      var shop = _getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.CUSTOMERS.shop,
+        ''
+      );
+
+      var mobile = _getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.CUSTOMERS.mobile,
+        ''
+      );
+
+      var searchable = [
+        _reportText(name),
+        _reportText(shop),
+        _reportText(mobile)
+      ].join(' ').toLowerCase();
+
+      if (search && searchable.indexOf(search) === -1) return;
+
+      var balance = _reportNumber(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.CUSTOMERS.balance,
+        0
+      ));
+
+      result.push({
+        name: _reportText(name),
+        shop: _reportText(shop),
+        mobile: _reportText(mobile),
+        totalSales: _reportNumber(_getColumnValue(
+          row,
+          table.headers,
+          REPORT_COLUMNS.CUSTOMERS.totalSales,
+          0
+        )),
+        received: _reportNumber(_getColumnValue(
+          row,
+          table.headers,
+          REPORT_COLUMNS.CUSTOMERS.receipts,
+          0
+        )),
+        due: balance,
+        lastPurchase: getLastPurchaseDate(name),
+        status: balance > 0 ? 'Due' : 'Good'
+      });
+    });
+
+    return {
+      data: result,
+      message: result.length ? 'OK' : 'No customers found.'
+    };
+
+  } catch (error) {
+    return {
+      error: 'Error in getCustomerReport: ' + error.message
+    };
+  }
+}
+
+function getCustomers() {
+  try {
+    var table = getRowsWithHeaders(REPORT_SHEETS.CUSTOMERS);
+
+    return table.rows.map(function(row) {
+      return {
+        id: _reportText(_getColumnValue(
+          row,
+          table.headers,
+          REPORT_COLUMNS.CUSTOMERS.id,
+          ''
+        )),
+        name: _reportText(_getColumnValue(
+          row,
+          table.headers,
+          REPORT_COLUMNS.CUSTOMERS.name,
+          ''
+        )),
+        shop: _reportText(_getColumnValue(
+          row,
+          table.headers,
+          REPORT_COLUMNS.CUSTOMERS.shop,
+          ''
+        )),
+        mobile: _reportText(_getColumnValue(
+          row,
+          table.headers,
+          REPORT_COLUMNS.CUSTOMERS.mobile,
+          ''
+        ))
+      };
+    });
+
+  } catch (error) {
+    return [];
+  }
+}
+
+function getLastPurchaseDate(customerName) {
+  try {
+    var table = getRowsWithHeaders(REPORT_SHEETS.SALE_ORDERS);
+    var latest = '';
+
+    table.rows.forEach(function(row) {
+      var customer = _getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.SALE_ORDERS.customer,
+        ''
+      );
+
+      if (
+        _reportText(customer).toLowerCase() ===
+        _reportText(customerName).toLowerCase()
+      ) {
+        var date = _reportDateKey(_getColumnValue(
+          row,
+          table.headers,
+          REPORT_COLUMNS.SALE_ORDERS.date,
+          ''
+        ));
+
+        if (date && date > latest) latest = date;
+      }
+    });
+
+    return latest || '-';
+
+  } catch (error) {
+    return '-';
+  }
+}
+
+
+// ============================================================================
+// SUPPLIER REPORT
+// ============================================================================
+
+function getSupplierReport(searchTerm) {
+  try {
+    var table = getRowsWithHeaders(REPORT_SHEETS.SUPPLIERS);
+    var search = _reportText(searchTerm).toLowerCase();
+    var result = [];
+
+    table.rows.forEach(function(row) {
+      var name = _getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.SUPPLIERS.name,
+        ''
+      );
+
+      var contact = _getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.SUPPLIERS.contact,
+        ''
+      );
+
+      var searchable = [
+        _reportText(name),
+        _reportText(contact)
+      ].join(' ').toLowerCase();
+
+      if (search && searchable.indexOf(search) === -1) return;
+
+      result.push({
+        name: _reportText(name),
+        contact: _reportText(contact),
+        totalPurchase: _reportNumber(_getColumnValue(
+          row,
+          table.headers,
+          REPORT_COLUMNS.SUPPLIERS.purchases,
+          0
+        )),
+        paid: _reportNumber(_getColumnValue(
+          row,
+          table.headers,
+          REPORT_COLUMNS.SUPPLIERS.payments,
+          0
+        )),
+        due: _reportNumber(_getColumnValue(
+          row,
+          table.headers,
+          REPORT_COLUMNS.SUPPLIERS.balance,
+          0
+        )),
+        lastPurchase: getLastPurchaseDateSupplier(name)
+      });
+    });
+
+    return {
+      data: result,
+      message: result.length ? 'OK' : 'No suppliers found.'
+    };
+
+  } catch (error) {
+    return {
+      error: 'Error in getSupplierReport: ' + error.message
+    };
+  }
+}
+
+function getSuppliers() {
+  try {
+    var table = getRowsWithHeaders(REPORT_SHEETS.SUPPLIERS);
+
+    return table.rows.map(function(row) {
+      return {
+        supplierId: _reportText(_getColumnValue(
+          row,
+          table.headers,
+          REPORT_COLUMNS.SUPPLIERS.id,
+          ''
+        )),
+        suppliername: _reportText(_getColumnValue(
+          row,
+          table.headers,
+          REPORT_COLUMNS.SUPPLIERS.name,
+          ''
+        )),
+        contact: _reportText(_getColumnValue(
+          row,
+          table.headers,
+          REPORT_COLUMNS.SUPPLIERS.contact,
+          ''
+        )),
+        address: _reportText(_getColumnValue(
+          row,
+          table.headers,
+          REPORT_COLUMNS.SUPPLIERS.address,
+          ''
+        ))
+      };
+    });
+
+  } catch (error) {
+    return [];
+  }
+}
+
+function getLastPurchaseDateSupplier(supplierName) {
+  try {
+    var table = getRowsWithHeaders(REPORT_SHEETS.PURCHASE_ORDERS);
+    var latest = '';
+
+    table.rows.forEach(function(row) {
+      var supplier = _getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.PURCHASE_ORDERS.supplier,
+        ''
+      );
+
+      if (
+        _reportText(supplier).toLowerCase() ===
+        _reportText(supplierName).toLowerCase()
+      ) {
+        var date = _reportDateKey(_getColumnValue(
+          row,
+          table.headers,
+          REPORT_COLUMNS.PURCHASE_ORDERS.date,
+          ''
+        ));
+
+        if (date && date > latest) latest = date;
+      }
+    });
+
+    return latest || '-';
+
+  } catch (error) {
+    return '-';
+  }
+}
+
+
+// ============================================================================
+// PRODUCT REPORT
+// ============================================================================
+
+function getProductReport(searchTerm) {
+  try {
+    var products = getRowsWithHeaders(REPORT_SHEETS.PRODUCTS);
+    var inventory = getRowsWithHeaders(REPORT_SHEETS.INVENTORY);
+
+    var search = _reportText(searchTerm).toLowerCase();
+    var inventoryMap = {};
+
+    inventory.rows.forEach(function(row) {
+      var name = _getColumnValue(
+        row,
+        inventory.headers,
+        REPORT_COLUMNS.INVENTORY.product,
+        ''
+      );
+
+      inventoryMap[_reportText(name).toLowerCase()] = {
+        purchased: _reportNumber(_getColumnValue(
+          row,
+          inventory.headers,
+          REPORT_COLUMNS.INVENTORY.purchased,
+          0
+        )),
+        sold: _reportNumber(_getColumnValue(
+          row,
+          inventory.headers,
+          REPORT_COLUMNS.INVENTORY.sold,
+          0
+        )),
+        remaining: _reportNumber(_getColumnValue(
+          row,
+          inventory.headers,
+          REPORT_COLUMNS.INVENTORY.remaining,
+          0
+        ))
+      };
+    });
+
+    var result = [];
+    var weighted = _getWeightedAvgCostMap();
+
+    products.rows.forEach(function(row) {
+      var name = _getColumnValue(
+        row,
+        products.headers,
+        REPORT_COLUMNS.PRODUCTS.name,
+        ''
+      );
+
+      var searchable = _reportText(name).toLowerCase();
+
+      if (search && searchable.indexOf(search) === -1) return;
+
+      var key = searchable;
+      var stock = _reportNumber(_getColumnValue(
+        row,
+        products.headers,
+        REPORT_COLUMNS.PRODUCTS.stock,
+        0
+      ));
+
+      var inv = inventoryMap[key] || {
+        purchased: 0,
+        sold: 0,
+        remaining: stock
+      };
+
+      // Weighted avg cost থাকলে সেটাই ব্যবহার করি
+      var sheetCost = _reportNumber(_getColumnValue(
+        row,
+        products.headers,
+        REPORT_COLUMNS.PRODUCTS.cost,
+        0
+      ));
+
+      var cost = weighted[key] !== undefined
+        ? weighted[key]
+        : sheetCost;
+
+      var selling = _reportNumber(_getColumnValue(
+        row,
+        products.headers,
+        REPORT_COLUMNS.PRODUCTS.selling,
+        0
+      ));
+
+      result.push({
+        name: _reportText(name),
+        hsn: _reportText(_getColumnValue(
+          row,
+          products.headers,
+          REPORT_COLUMNS.PRODUCTS.hsn,
+          ''
+        )),
+        opening: inv.remaining - inv.purchased + inv.sold,
+        purchased: inv.purchased,
+        sold: inv.sold,
+        stock: inv.remaining,
+        cost: cost,
+        selling: selling,
+        profit: selling - cost,
+        inventoryValue: inv.remaining * cost
+      });
+    });
+
+    return {
+      data: result,
+      message: result.length ? 'OK' : 'No products found.'
+    };
+
+  } catch (error) {
+    return {
+      error: 'Error in getProductReport: ' + error.message
+    };
+  }
+}
+
+
+// ============================================================================
+// INVENTORY REPORT
+// ============================================================================
+
+function getInventoryReport(searchTerm) {
+  try {
+    var table = getRowsWithHeaders(REPORT_SHEETS.INVENTORY);
+    var search = _reportText(searchTerm).toLowerCase();
+
+    var result = [];
+    var inventoryValue = 0;
+    var stockIn = 0;
+    var stockOut = 0;
+    var available = 0;
+    var lowStock = 0;
+    var outOfStock = 0;
+
+    var weighted = _getWeightedAvgCostMap();
+
+    table.rows.forEach(function(row) {
+      var name = _getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.INVENTORY.product,
+        ''
+      );
+
+      if (
+        search &&
+        _reportText(name).toLowerCase().indexOf(search) === -1
+      ) {
+        return;
+      }
+
+      var purchased = _reportNumber(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.INVENTORY.purchased,
+        0
+      ));
+
+      var sold = _reportNumber(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.INVENTORY.sold,
+        0
+      ));
+
+      var remaining = _reportNumber(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.INVENTORY.remaining,
+        0
+      ));
+
+      var reorder = _reportNumber(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.INVENTORY.reorder,
+        0
+      ));
+
+      var cost = weighted[_reportText(name).toLowerCase()];
+      if (cost === undefined) cost = getProductCost(name);
+
+      var status = 'In Stock';
+
+      if (remaining <= 0) {
+        status = 'Out of Stock';
+        outOfStock++;
+      } else if (remaining <= reorder) {
+        status = 'Low Stock';
+        lowStock++;
+      }
+
+      stockIn += purchased;
+      stockOut += sold;
+      available += remaining;
+      inventoryValue += remaining * cost;
+
+      result.push({
+        name: _reportText(name),
+        stockIn: purchased,
+        stockOut: sold,
+        available: remaining,
+        reorder: reorder,
+        status: status
+      });
+    });
+
+    return {
+      summary: {
+        inventoryValue: inventoryValue,
+        stockIn: stockIn,
+        stockOut: stockOut,
+        available: available,
+        lowStock: lowStock,
+        outOfStock: outOfStock
+      },
+      data: result,
+      message: result.length ? 'OK' : 'No inventory data found.'
+    };
+
+  } catch (error) {
+    return {
+      error: 'Error in getInventoryReport: ' + error.message
+    };
+  }
+}
+
+
+// ============================================================================
+// EXPENSE REPORT
+// ============================================================================
+
+function getExpenseReport(startDate, endDate, searchTerm) {
+  try {
+    var table = getRowsWithHeaders(REPORT_SHEETS.EXPENSES);
+    var range = getDateRangeFilter(startDate, endDate);
+    var search = _reportText(searchTerm).toLowerCase();
+
+    var result = [];
+    var totals = {
+      total: 0
+    };
+
+    table.rows.forEach(function(row) {
+      var date = _getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.EXPENSES.date,
+        ''
+      );
+
+      if (!isDateInRange(date, range)) return;
+
+      var category = _reportText(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.EXPENSES.category,
+        'Miscellaneous'
+      )) || 'Miscellaneous';
+
+      var description = _reportText(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.EXPENSES.description,
+        ''
+      ));
+
+      var searchable = [
+        category,
+        description
+      ].join(' ').toLowerCase();
+
+      if (search && searchable.indexOf(search) === -1) return;
+
+      var amount = _reportNumber(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.EXPENSES.amount,
+        0
+      ));
+
+      result.push({
+        date: formatDate(date),
+        category: category,
+        description: description,
+        amount: amount
+      });
+
+      totals.total += amount;
+      totals[category] = (totals[category] || 0) + amount;
+    });
+
+    return {
+      summary: totals,
+      data: result,
+      message: result.length
+        ? 'OK'
+        : 'No expenses in this date range.'
+    };
+
+  } catch (error) {
+    return {
+      error: 'Error in getExpenseReport: ' + error.message
+    };
+  }
+}
+
+
+// ============================================================================
+// CAPITAL REPORT
+// ============================================================================
+
+var CAPITAL_WITHDRAW_KEYWORDS = [
+  'withdraw',
+  'withdrawal',
+  'withdrawn',
+  'withdrew',
+  'withdrow',
+  'debit',
+  'capital out',
+  'cash out'
+];
+
+var CAPITAL_ADD_KEYWORDS = [
+  'add',
+  'added',
+  'addition',
+  'deposit',
+  'credit',
+  'invest',
+  'opening',
+  'capital in',
+  'cash in'
+];
+
+function _capitalKeywordMatch(value, keywords) {
+  var text = _reportText(value).toLowerCase();
+
+  if (!text) return false;
+
+  for (var i = 0; i < keywords.length; i++) {
+    if (text.indexOf(keywords[i]) !== -1) return true;
+  }
+
+  return false;
+}
+
+function _capitalTransaction(row, headers) {
+  var amountValue = _getColumnValue(
+    row,
+    headers,
+    REPORT_COLUMNS.CAPITAL.amount,
+    0
+  );
+
+  var amount = _reportNumber(amountValue);
+
+  var typeValue = _getColumnValue(
+    row,
+    headers,
+    REPORT_COLUMNS.CAPITAL.type,
+    ''
+  );
+
+  var description = _reportText(_getColumnValue(
+    row,
+    headers,
+    REPORT_COLUMNS.CAPITAL.description,
+    ''
+  ));
+
+  var isWithdrawal = false;
+
+  if (_capitalKeywordMatch(typeValue, CAPITAL_WITHDRAW_KEYWORDS)) {
+    isWithdrawal = true;
+  } else if (_capitalKeywordMatch(typeValue, CAPITAL_ADD_KEYWORDS)) {
+    isWithdrawal = false;
+  } else if (_capitalKeywordMatch(description, CAPITAL_WITHDRAW_KEYWORDS)) {
+    isWithdrawal = true;
+  } else if (_capitalKeywordMatch(description, CAPITAL_ADD_KEYWORDS)) {
+    isWithdrawal = false;
+  } else {
+    isWithdrawal = amount < 0;
+  }
+
+  var absolute = Math.abs(amount);
+
+  return {
+    amount: amount,
+    absolute: absolute,
+    added: isWithdrawal ? 0 : absolute,
+    withdrawal: isWithdrawal ? absolute : 0,
+    isWithdrawal: isWithdrawal,
+    type: isWithdrawal ? 'Withdraw' : 'Added'
+  };
+}
+
+function getCapitalReport(startDate, endDate) {
+  try {
+    var table = getRowsWithHeaders(REPORT_SHEETS.CAPITAL);
+    var range = getDateRangeFilter(startDate, endDate);
+
+    var entries = [];
+
+    table.rows.forEach(function(row) {
+      var rawDate = _getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.CAPITAL.date,
+        ''
+      );
+
+      var description = _reportText(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.CAPITAL.description,
+        ''
+      ));
+
+      var transaction = _capitalTransaction(row, table.headers);
+
+      if (
+        !description &&
+        transaction.added === 0 &&
+        transaction.withdrawal === 0
+      ) {
+        return;
+      }
+
+      entries.push({
+        dateKey: _reportDateKey(rawDate),
+        date: formatDate(rawDate),
+        description: description,
+        added: transaction.added,
+        withdrawal: transaction.withdrawal,
+        isWithdrawal: transaction.isWithdrawal
+      });
+    });
+
+    entries.sort(function(a, b) {
+      if (a.dateKey === b.dateKey) return 0;
+      if (!a.dateKey) return 1;
+      if (!b.dateKey) return -1;
+      return a.dateKey < b.dateKey ? -1 : 1;
+    });
+
+    var opening = 0;
+    var totalAdded = 0;
+    var totalWithdraw = 0;
+    var result = [];
+
+    entries.forEach(function(entry) {
+      if (entry.dateKey && entry.dateKey < range.startKey) {
+        opening += entry.added - entry.withdrawal;
+        return;
+      }
+
+      if (entry.dateKey && !isDateInRange(entry.dateKey, range)) {
+        return;
+      }
+
+      totalAdded += entry.added;
+      totalWithdraw += entry.withdrawal;
+
+      result.push({
+        date: entry.date,
+        type: entry.isWithdrawal ? 'Withdraw' : 'Added',
+        description: entry.description,
+        amount: entry.isWithdrawal ? -entry.withdrawal : entry.added
+      });
+    });
+
+    var running = opening;
+
+    result.forEach(function(item) {
+      running += item.amount;
+      item.balance = running;
+      item.runningBalance = running;
+    });
+
+    var current = opening + totalAdded - totalWithdraw;
+    var netChange = totalAdded - totalWithdraw;
+
+    var growth = opening !== 0
+      ? ((current - opening) / Math.abs(opening)) * 100
+      : (netChange !== 0 ? 100 : 0);
+
+    return {
+      summary: {
+        opening: opening,
+        added: totalAdded,
+        withdraw: totalWithdraw,
+        netChange: netChange,
+        current: current,
+        closing: current,
+        growth: growth,
+        transactions: result.length
+      },
+      data: result,
+      message: result.length
+        ? 'OK'
+        : 'No capital transactions in this date range.'
+    };
+
+  } catch (error) {
+    console.error('getCapitalReport error:', error);
+
+    return {
+      summary: {
+        opening: 0,
+        added: 0,
+        withdraw: 0,
+        netChange: 0,
+        current: 0,
+        closing: 0,
+        growth: 0,
+        transactions: 0
+      },
+      data: [],
+      error: 'Error in getCapitalReport: ' + error.message
+    };
+  }
+}
+
+
+// ============================================================================
+// CASH FLOW
+// ============================================================================
+
+function getCashFlow(fromDate, toDate) {
+  try {
+    var range = getDateRangeFilter(fromDate, toDate);
+
+    var receipts = getRowsWithHeaders(REPORT_SHEETS.RECEIPTS);
+    var payments = getRowsWithHeaders(REPORT_SHEETS.PAYMENTS);
+    var expenses = getRowsWithHeaders(REPORT_SHEETS.EXPENSES);
+    var capital = getRowsWithHeaders(REPORT_SHEETS.CAPITAL);
+
+    var salesCollected = 0;
+    var supplierPayments = 0;
+    var expenseTotal = 0;
+    var capitalAdded = 0;
+    var capitalWithdraw = 0;
+    var transactions = [];
+
+    receipts.rows.forEach(function(row) {
+      var date = _getColumnValue(
+        row,
+        receipts.headers,
+        REPORT_COLUMNS.RECEIPTS.date,
+        ''
+      );
+
+      if (!isDateInRange(date, range)) return;
+
+      var amount = _reportNumber(_getColumnValue(
+        row,
+        receipts.headers,
+        REPORT_COLUMNS.RECEIPTS.amount,
+        0
+      ));
+
+      if (amount <= 0) return;
+
+      var customer = _getColumnValue(
+        row,
+        receipts.headers,
+        REPORT_COLUMNS.RECEIPTS.customer,
+        ''
+      );
+
+      salesCollected += amount;
+
+      transactions.push({
+        date: formatDate(date),
+        description: _reportText(customer) || 'Sales Collection',
+        category: 'Sales',
+        inflow: amount,
+        outflow: 0
+      });
+    });
+
+    payments.rows.forEach(function(row) {
+      var date = _getColumnValue(
+        row,
+        payments.headers,
+        REPORT_COLUMNS.PAYMENTS.date,
+        ''
+      );
+
+      if (!isDateInRange(date, range)) return;
+
+      var amount = _reportNumber(_getColumnValue(
+        row,
+        payments.headers,
+        REPORT_COLUMNS.PAYMENTS.amount,
+        0
+      ));
+
+      if (amount <= 0) return;
+
+      var supplier = _getColumnValue(
+        row,
+        payments.headers,
+        REPORT_COLUMNS.PAYMENTS.supplier,
+        ''
+      );
+
+      supplierPayments += amount;
+
+      transactions.push({
+        date: formatDate(date),
+        description: _reportText(supplier) || 'Supplier Payment',
+        category: 'Purchase',
+        inflow: 0,
+        outflow: amount
+      });
+    });
+
+    expenses.rows.forEach(function(row) {
+      var date = _getColumnValue(
+        row,
+        expenses.headers,
+        REPORT_COLUMNS.EXPENSES.date,
+        ''
+      );
+
+      if (!isDateInRange(date, range)) return;
+
+      var amount = _reportNumber(_getColumnValue(
+        row,
+        expenses.headers,
+        REPORT_COLUMNS.EXPENSES.amount,
+        0
+      ));
+
+      if (amount <= 0) return;
+
+      var category = _reportText(_getColumnValue(
+        row,
+        expenses.headers,
+        REPORT_COLUMNS.EXPENSES.category,
+        'Expense'
+      )) || 'Expense';
+
+      var description = _reportText(_getColumnValue(
+        row,
+        expenses.headers,
+        REPORT_COLUMNS.EXPENSES.description,
+        category
+      )) || category;
+
+      expenseTotal += amount;
+
+      transactions.push({
+        date: formatDate(date),
+        description: description,
+        category: category,
+        inflow: 0,
+        outflow: amount
+      });
+    });
+
+    capital.rows.forEach(function(row) {
+      var date = _getColumnValue(
+        row,
+        capital.headers,
+        REPORT_COLUMNS.CAPITAL.date,
+        ''
+      );
+
+      if (!isDateInRange(date, range)) return;
+
+      var transaction = _capitalTransaction(row, capital.headers);
+
+      var description = _reportText(_getColumnValue(
+        row,
+        capital.headers,
+        REPORT_COLUMNS.CAPITAL.description,
+        ''
+      ));
+
+      if (transaction.added > 0) {
+        capitalAdded += transaction.added;
+
+        transactions.push({
+          date: formatDate(date),
+          description: description || 'Capital Added',
+          category: 'Capital',
+          inflow: transaction.added,
+          outflow: 0
+        });
+      }
+
+      if (transaction.withdrawal > 0) {
+        capitalWithdraw += transaction.withdrawal;
+
+        transactions.push({
+          date: formatDate(date),
+          description: description || 'Capital Withdraw',
+          category: 'Capital',
+          inflow: 0,
+          outflow: transaction.withdrawal
+        });
+      }
+    });
+
+    transactions.sort(function(a, b) {
+      return String(a.date).localeCompare(String(b.date));
+    });
+
+    var openingBalance = 0;
+    var runningBalance = openingBalance;
+
+    transactions.forEach(function(transaction) {
+      runningBalance +=
+        _reportNumber(transaction.inflow) -
+        _reportNumber(transaction.outflow);
+
+      transaction.balance = runningBalance;
+    });
+
+    var cashInHand =
+      openingBalance +
+      salesCollected +
+      capitalAdded -
+      supplierPayments -
+      expenseTotal -
+      capitalWithdraw;
+
+    return {
+      data: transactions,
+      summary: {
+        opening: openingBalance,
+        salesCollected: salesCollected,
+        capitalAdded: capitalAdded,
+        expenses: expenseTotal,
+        purchases: supplierPayments,
+        purchasePayments: supplierPayments,
+        supplierPayments: supplierPayments,
+        withdraw: capitalWithdraw,
+        capitalWithdraw: capitalWithdraw,
+        closing: cashInHand,
+        cashInHand: cashInHand
+      },
+      message: 'Cash Flow and Cash in Hand calculated successfully.'
+    };
+
+  } catch (error) {
+    console.error('getCashFlow error:', error);
+
+    return {
+      data: [],
+      summary: {
+        opening: 0,
+        salesCollected: 0,
+        capitalAdded: 0,
+        expenses: 0,
+        purchases: 0,
+        purchasePayments: 0,
+        supplierPayments: 0,
+        withdraw: 0,
+        capitalWithdraw: 0,
+        closing: 0,
+        cashInHand: 0
+      },
+      error: 'Error in getCashFlow: ' + error.message
+    };
+  }
+}
+
+function getCashInHand() {
+  var result = getCashFlow('', '');
+
+  return result &&
+    result.summary &&
+    isFinite(result.summary.cashInHand)
+    ? result.summary.cashInHand
+    : 0;
+}
+
+function getCashInHandDetails() {
+  var result = getCashFlow('', '');
+
+  if (!result || !result.summary) {
+    return {
+      cashInHand: 0,
+      salesCollected: 0,
+      capitalAdded: 0,
+      supplierPayments: 0,
+      expenses: 0,
+      capitalWithdraw: 0
+    };
+  }
+
+  return {
+    cashInHand: _reportNumber(result.summary.cashInHand),
+    salesCollected: _reportNumber(result.summary.salesCollected),
+    capitalAdded: _reportNumber(result.summary.capitalAdded),
+    supplierPayments: _reportNumber(result.summary.supplierPayments),
+    expenses: _reportNumber(result.summary.expenses),
+    capitalWithdraw: _reportNumber(result.summary.capitalWithdraw)
+  };
+}
+
+
+// ============================================================================
+// RECEIVABLE REPORT
+// ============================================================================
+
+function getReceivableReport() {
+  try {
+    var table = getRowsWithHeaders(REPORT_SHEETS.CUSTOMERS);
+    var result = [];
+    var totalDue = 0;
+
+    table.rows.forEach(function(row) {
+      var name = _getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.CUSTOMERS.name,
+        ''
+      );
+
+      var due = _reportNumber(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.CUSTOMERS.balance,
+        0
+      ));
+
+      if (due <= 0) return;
+
+      var invoiceDate = getLastInvoiceDate(name);
+
+      result.push({
+        customer: _reportText(name),
+        invoice: getLastInvoiceForCustomer(name),
+        due: due,
+        lastPayment: getLastPaymentDate(name),
+        age: getAgeInDays(invoiceDate),
+        status: 'Pending'
+      });
+
+      totalDue += due;
+    });
+
+    result.sort(function(a, b) {
+      return b.due - a.due;
+    });
+
+    return {
+      data: result,
+      totalDue: totalDue,
+      message: 'OK'
+    };
+
+  } catch (error) {
+    return {
+      error: 'Error in getReceivableReport: ' + error.message
+    };
+  }
+}
+
+function getLastInvoiceForCustomer(customerName) {
+  try {
+    var table = getRowsWithHeaders(REPORT_SHEETS.SALE_ORDERS);
+    var latestDate = '';
+    var latestInvoice = '-';
+
+    table.rows.forEach(function(row) {
+      var customer = _getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.SALE_ORDERS.customer,
+        ''
+      );
+
+      if (
+        _reportText(customer).toLowerCase() !==
+        _reportText(customerName).toLowerCase()
+      ) {
+        return;
+      }
+
+      var date = _reportDateKey(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.SALE_ORDERS.date,
+        ''
+      ));
+
+      if (date >= latestDate) {
+        latestDate = date;
+        latestInvoice = _reportText(_getColumnValue(
+          row,
+          table.headers,
+          REPORT_COLUMNS.SALE_ORDERS.invoice,
+          '-'
+        )) || '-';
+      }
+    });
+
+    return latestInvoice;
+
+  } catch (error) {
+    return '-';
+  }
+}
+
+function getLastInvoiceDate(customerName) {
+  try {
+    var table = getRowsWithHeaders(REPORT_SHEETS.SALE_ORDERS);
+    var latest = '';
+
+    table.rows.forEach(function(row) {
+      var customer = _getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.SALE_ORDERS.customer,
+        ''
+      );
+
+      if (
+        _reportText(customer).toLowerCase() !==
+        _reportText(customerName).toLowerCase()
+      ) {
+        return;
+      }
+
+      var date = _reportDateKey(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.SALE_ORDERS.date,
+        ''
+      ));
+
+      if (date > latest) latest = date;
+    });
+
+    return latest ? parseDateSafe(latest) : null;
+
+  } catch (error) {
+    return null;
+  }
+}
+
+function getLastPaymentDate(customerName) {
+  try {
+    var table = getRowsWithHeaders(REPORT_SHEETS.RECEIPTS);
+    var latest = '';
+
+    table.rows.forEach(function(row) {
+      var customer = _getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.RECEIPTS.customer,
+        ''
+      );
+
+      if (
+        _reportText(customer).toLowerCase() !==
+        _reportText(customerName).toLowerCase()
+      ) {
+        return;
+      }
+
+      var date = _reportDateKey(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.RECEIPTS.date,
+        ''
+      ));
+
+      if (date > latest) latest = date;
+    });
+
+    return latest || '-';
+
+  } catch (error) {
+    return '-';
+  }
+}
+
+function getAgeInDays(date) {
+  if (!date) return 0;
+
+  var dateKey = _reportDateKey(date);
+  var todayKey = _reportDateKey(new Date());
+
+  if (!dateKey || !todayKey) return 0;
+
+  var start = new Date(dateKey + 'T00:00:00');
+  var end = new Date(todayKey + 'T00:00:00');
+
+  return Math.max(
+    Math.floor((end - start) / 86400000),
+    0
+  );
+}
+
+
+// ============================================================================
+// PAYABLE REPORT
+// ============================================================================
+
+function getPayableReport() {
+  try {
+    var table = getRowsWithHeaders(REPORT_SHEETS.SUPPLIERS);
+    var result = [];
+    var totalDue = 0;
+
+    table.rows.forEach(function(row) {
+      var name = _getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.SUPPLIERS.name,
+        ''
+      );
+
+      var due = _reportNumber(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.SUPPLIERS.balance,
+        0
+      ));
+
+      if (due <= 0) return;
+
+      result.push({
+        supplier: _reportText(name),
+        bill: getLastBillForSupplier(name),
+        due: due,
+        lastPayment: getLastPaymentDateSupplier(name),
+        status: 'Pending'
+      });
+
+      totalDue += due;
+    });
+
+    result.sort(function(a, b) {
+      return b.due - a.due;
+    });
+
+    return {
+      data: result,
+      totalDue: totalDue,
+      message: 'OK'
+    };
+
+  } catch (error) {
+    return {
+      error: 'Error in getPayableReport: ' + error.message
+    };
+  }
+}
+
+function getLastBillForSupplier(supplierName) {
+  try {
+    var table = getRowsWithHeaders(REPORT_SHEETS.PURCHASE_ORDERS);
+    var latestDate = '';
+    var latestBill = '-';
+
+    table.rows.forEach(function(row) {
+      var supplier = _getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.PURCHASE_ORDERS.supplier,
+        ''
+      );
+
+      if (
+        _reportText(supplier).toLowerCase() !==
+        _reportText(supplierName).toLowerCase()
+      ) {
+        return;
+      }
+
+      var date = _reportDateKey(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.PURCHASE_ORDERS.date,
+        ''
+      ));
+
+      if (date >= latestDate) {
+        latestDate = date;
+        latestBill = _reportText(_getColumnValue(
+          row,
+          table.headers,
+          REPORT_COLUMNS.PURCHASE_ORDERS.bill,
+          '-'
+        )) || '-';
+      }
+    });
+
+    return latestBill;
+
+  } catch (error) {
+    return '-';
+  }
+}
+
+function getLastPaymentDateSupplier(supplierName) {
+  try {
+    var table = getRowsWithHeaders(REPORT_SHEETS.PAYMENTS);
+    var latest = '';
+
+    table.rows.forEach(function(row) {
+      var supplier = _getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.PAYMENTS.supplier,
+        ''
+      );
+
+      if (
+        _reportText(supplier).toLowerCase() !==
+        _reportText(supplierName).toLowerCase()
+      ) {
+        return;
+      }
+
+      var date = _reportDateKey(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.PAYMENTS.date,
+        ''
+      ));
+
+      if (date > latest) latest = date;
+    });
+
+    return latest || '-';
+
+  } catch (error) {
+    return '-';
+  }
+}
+
+
+// ============================================================================
+// DASHBOARD KPI
+// ============================================================================
+
+function getDashboardKPI() {
+  try {
+    var sales = getSalesReport('', '', '', '');
+    var purchases = getPurchaseReport('', '', '', '');
+    var profit = getProfitLoss('', '');
+
+    var customerTable = getRowsWithHeaders(REPORT_SHEETS.CUSTOMERS);
+    var supplierTable = getRowsWithHeaders(REPORT_SHEETS.SUPPLIERS);
+    var productTable = getRowsWithHeaders(REPORT_SHEETS.PRODUCTS);
+
+    var inventory = getInventoryReport('');
+
+    return {
+      totalSales: sales.summary
+        ? _reportNumber(sales.summary.totalAmount)
+        : 0,
+
+      totalPurchases: purchases.summary
+        ? _reportNumber(purchases.summary.totalPurchase)
+        : 0,
+
+      estimatedProfit: profit.summary
+        ? _reportNumber(profit.summary.netProfit)
+        : 0,
+
+      totalOrders: sales.summary
+        ? _reportNumber(sales.summary.totalInvoices)
+        : 0,
+
+      customers: customerTable.rows.length,
+      suppliers: supplierTable.rows.length,
+      products: productTable.rows.length,
+
+      lowStock: inventory.summary
+        ? _reportNumber(inventory.summary.lowStock)
+        : 0
+    };
+
+  } catch (error) {
+    return {
+      error: 'Error in getDashboardKPI: ' + error.message
+    };
+  }
+}
+
+
+// ============================================================================
+// PURCHASE DETAILS
+// ============================================================================
+
+function zahidPurchaseReport(startDate, endDate) {
+  try {
+    var poTable = getRowsWithHeaders(REPORT_SHEETS.PURCHASE_ORDERS);
+    var itemTable = getRowsWithHeaders(REPORT_SHEETS.PURCHASE_ITEMS);
+    var range = getDateRangeFilter(startDate, endDate);
+
+    var purchaseOrders = [];
+    var orderIds = {};
+    var totalPurchases = 0;
+
+    poTable.rows.forEach(function(row) {
+      var date = _getColumnValue(
+        row,
+        poTable.headers,
+        REPORT_COLUMNS.PURCHASE_ORDERS.date,
+        ''
+      );
+
+      if (!isDateInRange(date, range)) return;
+
+      var id = _reportText(_getColumnValue(
+        row,
+        poTable.headers,
+        REPORT_COLUMNS.PURCHASE_ORDERS.id,
+        ''
+      ));
+
+      var supplier = _reportText(_getColumnValue(
+        row,
+        poTable.headers,
+        REPORT_COLUMNS.PURCHASE_ORDERS.supplier,
+        ''
+      ));
+
+      var bill = _reportText(_getColumnValue(
+        row,
+        poTable.headers,
+        REPORT_COLUMNS.PURCHASE_ORDERS.bill,
+        ''
+      ));
+
+      var total = _reportNumber(_getColumnValue(
+        row,
+        poTable.headers,
+        REPORT_COLUMNS.PURCHASE_ORDERS.total,
+        0
+      ));
+
+      orderIds[id] = true;
+      totalPurchases += total;
+
+      purchaseOrders.push({
+        date: formatDate(date),
+        poId: id,
+        supplier: supplier,
+        billNo: bill,
+        total: total,
+        items: []
+      });
+    });
+
+    itemTable.rows.forEach(function(row) {
+      var poId = _reportText(_getColumnValue(
+        row,
+        itemTable.headers,
+        REPORT_COLUMNS.PURCHASE_ITEMS.poId,
+        ''
+      ));
+
+      if (!orderIds[poId]) return;
+
+      var order = purchaseOrders.filter(function(item) {
+        return item.poId === poId;
+      })[0];
+
+      if (!order) return;
+
+      order.items.push({
+        product: _reportText(_getColumnValue(
+          row,
+          itemTable.headers,
+          REPORT_COLUMNS.PURCHASE_ITEMS.product,
+          ''
+        )),
+        details: _reportText(_getColumnValue(
+          row,
+          itemTable.headers,
+          REPORT_COLUMNS.PURCHASE_ITEMS.details,
+          ''
+        )),
+        qty: _reportNumber(_getColumnValue(
+          row,
+          itemTable.headers,
+          REPORT_COLUMNS.PURCHASE_ITEMS.qty,
+          0
+        )),
+        price: _reportNumber(_getColumnValue(
+          row,
+          itemTable.headers,
+          REPORT_COLUMNS.PURCHASE_ITEMS.price,
+          0
+        )),
+        total: _reportNumber(_getColumnValue(
+          row,
+          itemTable.headers,
+          REPORT_COLUMNS.PURCHASE_ITEMS.total,
+          0
+        ))
+      });
+    });
+
+    return {
+      data: purchaseOrders,
+      totalPurchases: totalPurchases,
+      totalOrders: purchaseOrders.length,
+      message: purchaseOrders.length
+        ? 'OK'
+        : 'No purchases in this date range.'
+    };
+
+  } catch (error) {
+    return {
+      error: 'Error in zahidPurchaseReport: ' + error.message
+    };
+  }
+}
+
+
+// ============================================================================
+// PURCHASE ORDER HELPERS
+// ============================================================================
+
+function generatePoId() {
+  var table = getRowsWithHeaders(REPORT_SHEETS.PURCHASE_ORDERS);
+  var year = Utilities.formatDate(
+    new Date(),
+    Session.getScriptTimeZone(),
+    'yyyy'
+  );
+
+  var number = table.rows.length + 1;
+
+  return 'PO-' + year + '-' + ('000' + number).slice(-3);
+}
+
+function getProductsForPurchase() {
+  try {
+    var table = getRowsWithHeaders(REPORT_SHEETS.PRODUCTS);
+    var weighted = _getWeightedAvgCostMap();
+
+    return table.rows.map(function(row) {
+      var name = _reportText(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.PRODUCTS.name,
+        ''
+      ));
+
+      var key = name.toLowerCase();
+
+      return {
+        name: name,
+        hsn: _reportText(_getColumnValue(
+          row,
+          table.headers,
+          REPORT_COLUMNS.PRODUCTS.hsn,
+          ''
+        )),
+        stock: _reportNumber(_getColumnValue(
+          row,
+          table.headers,
+          REPORT_COLUMNS.PRODUCTS.stock,
+          0
+        )),
+        cost: weighted[key] !== undefined
+          ? weighted[key]
+          : _reportNumber(_getColumnValue(
+              row,
+              table.headers,
+              REPORT_COLUMNS.PRODUCTS.cost,
+              0
+            ))
+      };
+    });
+
+  } catch (error) {
+    return [];
+  }
+}
+
+function createPurchaseOrder(payload) {
+  try {
+    payload = payload || {};
+
+    var ss = getSS();
+    var poSheet = ss.getSheetByName(REPORT_SHEETS.PURCHASE_ORDERS);
+    var itemSheet = ss.getSheetByName(REPORT_SHEETS.PURCHASE_ITEMS);
+
+    if (!poSheet || !itemSheet) {
+      return {
+        error: 'PurchaseOrders or PurchaseItems sheet was not found.'
+      };
+    }
+
+    var poId = _reportText(payload.poId) || generatePoId();
+    var date = payload.date || _reportDateKey(new Date());
+    var supplier = payload.supplierName || payload.supplier || '';
+    var billNo = payload.billNo || '';
+    var grandTotal = _reportNumber(payload.grandTotal);
+    var isEdit = payload.isEdit === true;
+
+    if (isEdit) {
+      var poValues = poSheet.getDataRange().getValues();
+
+      for (var i = 1; i < poValues.length; i++) {
+        var existingId = _reportText(poValues[i][0]);
+
+        if (existingId === poId) {
+          poSheet.getRange(i + 1, 1, 1, 5).setValues([[
+            poId,
+            date,
+            supplier,
+            billNo,
+            grandTotal
+          ]]);
+
+          break;
+        }
+      }
+
+      var itemValues = itemSheet.getDataRange().getValues();
+      var rowsToDelete = [];
+
+      for (var j = 1; j < itemValues.length; j++) {
+        if (_reportText(itemValues[j][0]) === poId) {
+          rowsToDelete.push(j + 1);
+        }
+      }
+
+      rowsToDelete.reverse().forEach(function(rowNumber) {
+        itemSheet.deleteRow(rowNumber);
+      });
+
+    } else {
+      poSheet.appendRow([
+        poId,
+        date,
+        supplier,
+        billNo,
+        grandTotal
+      ]);
+    }
+
+    var items = Array.isArray(payload.items)
+      ? payload.items
+      : [];
+
+    var itemRows = items.map(function(item) {
+      var product = item.productName || item.product || item.productId || '';
+      var details = item.details || '';
+      var quantity = _reportNumber(item.qty || item.quantity);
+      var price = _reportNumber(item.cost || item.price);
+      var total = _reportNumber(item.total) || quantity * price;
+
+      return [
+        poId,
+        date,
+        supplier,
+        billNo,
+        product,
+        details,
+        quantity,
+        price,
+        total
+      ];
+    });
+
+    if (itemRows.length) {
+      itemSheet
+        .getRange(
+          itemSheet.getLastRow() + 1,
+          1,
+          itemRows.length,
+          9
+        )
+        .setValues(itemRows);
+    }
+
+    return {
+      success: true,
+      poId: poId
+    };
+
+  } catch (error) {
+    return {
+      error: 'Error creating purchase order: ' + error.message
+    };
+  }
+}
+
+function getPurchaseOrderById(poId) {
+  try {
+    var poTable = getRowsWithHeaders(REPORT_SHEETS.PURCHASE_ORDERS);
+    var itemTable = getRowsWithHeaders(REPORT_SHEETS.PURCHASE_ITEMS);
+
+    var target = null;
+
+    poTable.rows.forEach(function(row) {
+      var id = _reportText(_getColumnValue(
+        row,
+        poTable.headers,
+        REPORT_COLUMNS.PURCHASE_ORDERS.id,
+        ''
+      ));
+
+      if (id !== _reportText(poId)) return;
+
+      target = {
+        poId: id,
+        date: _getColumnValue(
+          row,
+          poTable.headers,
+          REPORT_COLUMNS.PURCHASE_ORDERS.date,
+          ''
+        ),
+        supplierName: _reportText(_getColumnValue(
+          row,
+          poTable.headers,
+          REPORT_COLUMNS.PURCHASE_ORDERS.supplier,
+          ''
+        )),
+        billNo: _reportText(_getColumnValue(
+          row,
+          poTable.headers,
+          REPORT_COLUMNS.PURCHASE_ORDERS.bill,
+          ''
+        )),
+        grandTotal: _reportNumber(_getColumnValue(
+          row,
+          poTable.headers,
+          REPORT_COLUMNS.PURCHASE_ORDERS.total,
+          0
+        )),
+        items: []
+      };
+    });
+
+    if (!target) return null;
+
+    itemTable.rows.forEach(function(row) {
+      var id = _reportText(_getColumnValue(
+        row,
+        itemTable.headers,
+        REPORT_COLUMNS.PURCHASE_ITEMS.poId,
+        ''
+      ));
+
+      if (id !== target.poId) return;
+
+      target.items.push({
+        productName: _reportText(_getColumnValue(
+          row,
+          itemTable.headers,
+          REPORT_COLUMNS.PURCHASE_ITEMS.product,
+          ''
+        )),
+        details: _reportText(_getColumnValue(
+          row,
+          itemTable.headers,
+          REPORT_COLUMNS.PURCHASE_ITEMS.details,
+          ''
+        )),
+        qty: _reportNumber(_getColumnValue(
+          row,
+          itemTable.headers,
+          REPORT_COLUMNS.PURCHASE_ITEMS.qty,
+          0
+        )),
+        price: _reportNumber(_getColumnValue(
+          row,
+          itemTable.headers,
+          REPORT_COLUMNS.PURCHASE_ITEMS.price,
+          0
+        )),
+        total: _reportNumber(_getColumnValue(
+          row,
+          itemTable.headers,
+          REPORT_COLUMNS.PURCHASE_ITEMS.total,
+          0
+        ))
+      });
+    });
+
+    var suppliers = getSuppliers();
+
+    suppliers.some(function(supplier) {
+      if (
+        _reportText(supplier.suppliername).toLowerCase() ===
+        _reportText(target.supplierName).toLowerCase()
+      ) {
+        target.supplierId = supplier.supplierId;
+        target.supplierContact = supplier.contact;
+        target.supplierAddress = supplier.address;
+        return true;
+      }
+
+      return false;
+    });
+
+    return target;
+
+  } catch (error) {
+    return null;
+  }
+}
+
+function getPurchaseOrdersPaginated(searchTerm, page, pageSize) {
+  try {
+    var table = getRowsWithHeaders(REPORT_SHEETS.PURCHASE_ORDERS);
+    var search = _reportText(searchTerm).toLowerCase();
+
+    page = Math.max(parseInt(page, 10) || 1, 1);
+    pageSize = Math.max(parseInt(pageSize, 10) || 10, 1);
+
+    var result = [];
+
+    table.rows.forEach(function(row) {
+      var id = _reportText(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.PURCHASE_ORDERS.id,
+        ''
+      ));
+
+      var supplier = _reportText(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.PURCHASE_ORDERS.supplier,
+        ''
+      ));
+
+      var bill = _reportText(_getColumnValue(
+        row,
+        table.headers,
+        REPORT_COLUMNS.PURCHASE_ORDERS.bill,
+        ''
+      ));
+
+      var searchable = [
+        id,
+        supplier,
+        bill
+      ].join(' ').toLowerCase();
+
+      if (search && searchable.indexOf(search) === -1) return;
+
+      result.push({
+        poId: id,
+        date: formatDate(_getColumnValue(
+          row,
+          table.headers,
+          REPORT_COLUMNS.PURCHASE_ORDERS.date,
+          ''
+        )),
+        supplier: supplier,
+        billNo: bill,
+        grandTotal: _reportNumber(_getColumnValue(
+          row,
+          table.headers,
+          REPORT_COLUMNS.PURCHASE_ORDERS.total,
+          0
+        ))
+      });
+    });
+
+    var totalCount = result.length;
+    var start = (page - 1) * pageSize;
+
+    return {
+      orders: result.slice(start, start + pageSize),
+      totalCount: totalCount,
+      page: page,
+      pageSize: pageSize
+    };
+
+  } catch (error) {
+    return {
+      orders: [],
+      totalCount: 0,
+      error: error.message
+    };
+  }
+}
+
+function deletePurchaseOrder(poId) {
+  try {
+    var ss = getSS();
+    var poSheet = ss.getSheetByName(REPORT_SHEETS.PURCHASE_ORDERS);
+    var itemSheet = ss.getSheetByName(REPORT_SHEETS.PURCHASE_ITEMS);
+
+    if (!poSheet || !itemSheet) {
+      return {
+        error: 'Purchase sheets not found.'
+      };
+    }
+
+    var poValues = poSheet.getDataRange().getValues();
+
+    for (var i = poValues.length - 1; i >= 1; i--) {
+      if (_reportText(poValues[i][0]) === _reportText(poId)) {
+        poSheet.deleteRow(i + 1);
+        break;
+      }
+    }
+
+    var itemValues = itemSheet.getDataRange().getValues();
+
+    for (var j = itemValues.length - 1; j >= 1; j--) {
+      if (_reportText(itemValues[j][0]) === _reportText(poId)) {
+        itemSheet.deleteRow(j + 1);
+      }
+    }
+
+    return {
+      success: true
+    };
+
+  } catch (error) {
+    return {
+      error: 'Error deleting purchase order: ' + error.message
+    };
+  }
+}
+
+function createAllPurchaseSheets() {
+  try {
+    var ss = getSS();
+
+    var purchaseSheets = {
+      PurchaseOrders: [
+        'PO ID',
+        'Date',
+        'Supplier Name',
+        'Bill No',
+        'Grand Total'
+      ],
+      PurchaseItems: [
+        'PO ID',
+        'Date',
+        'Supplier Name',
+        'Bill No',
+        'Product Name',
+        'Products details',
+        'Qty',
+        'Price',
+        'Total'
+      ]
+    };
+
+    Object.keys(purchaseSheets).forEach(function(sheetName) {
+      var sheet = ss.getSheetByName(sheetName);
+
+      if (!sheet) {
+        sheet = ss.insertSheet(sheetName);
+        sheet.getRange(1, 1, 1, purchaseSheets[sheetName].length)
+          .setValues([purchaseSheets[sheetName]])
+          .setFontWeight('bold');
+        sheet.setFrozenRows(1);
+      }
+    });
+
+    return {
+      success: true
+    };
+
+  } catch (error) {
+    return {
+      error: error.message
+    };
+  }
+}
+
+
+// ============================================================================
+// COMPATIBILITY TESTS
+// ============================================================================
+
+function testBackend() {
+  return {
+    status: 'success',
+    message: 'MIM ERP Reports Backend is working.'
+  };
+}
+
+function testCashInHand() {
+  return getCashFlow('', '');
+}
+
+function testCapitalReport() {
+  return getCapitalReport('', '');
+}
+
+function testReportsBackend() {
+  return {
+    sales: getSalesReport('', '', '', ''),
+    purchases: getPurchaseReport('', '', '', ''),
+    profitLoss: getProfitLoss('', ''),
+    cashFlow: getCashFlow('', ''),
+    capital: getCapitalReport('', ''),
+    customers: getCustomerReport(''),
+    suppliers: getSupplierReport(''),
+    products: getProductReport(''),
+    inventory: getInventoryReport(''),
+    expenses: getExpenseReport('', '', ''),
+    receivables: getReceivableReport(),
+    payables: getPayableReport()
+  };
+}
+
+// নতুন FIFO ভিত্তিক profit test
+function testFifoProfit() {
+  return getProfitLoss('', '');
+}
+
+// SalesDetails এর প্রতিটি লাইনের profit test
+function testSalesDetailsWithProfit() {
+  return getSalesDetailsWithProfit('', '');
+}
+
+// SalesDetails sheet এর L column এ profit লিখে দেয়
+function testWriteSalesDetailsProfitToSheet() {
+  return writeSalesDetailsProfitToSheet();
+}
+
+
+// ============================================================================
+// END OF gsreports.gs
+// ============================================================================

@@ -1,0 +1,88 @@
+// gssettings.gs
+
+/**
+ * Settings শিট তৈরি/নিশ্চিত করা
+ */
+function ensureSettingsSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName('Settings');
+  if (!sheet) {
+    sheet = ss.insertSheet('Settings');
+    sheet.appendRow(['Setting Key', 'Setting Value']);
+    sheet.getRange(1, 1, 1, 2).setBackground('#1a3a2a').setFontColor('#ffffff').setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+/**
+ * একক সেটিংস সেভ বা আপডেট
+ */
+function saveSetting(key, value) {
+  const sheet = ensureSettingsSheet();
+  const data = sheet.getDataRange().getValues();
+  let row = -1;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === key) {
+      row = i + 1;
+      break;
+    }
+  }
+  if (row === -1) {
+    sheet.appendRow([key, value]);
+  } else {
+    sheet.getRange(row, 2).setValue(value);
+  }
+  return true;
+}
+
+/**
+ * সব সেটিংস অবজেক্ট আকারে রিটার্ন করে
+ */
+function getAllSettings() {
+  const sheet = ensureSettingsSheet();
+  const data = sheet.getDataRange().getValues();
+  const settings = {};
+  for (let i = 1; i < data.length; i++) {
+    settings[data[i][0]] = data[i][1];
+  }
+  return settings;
+}
+
+/**
+ * নির্দিষ্ট সেটিংসের মান পড়ে
+ */
+function getSetting(key) {
+  const settings = getAllSettings();
+  return settings[key] || '';
+}
+
+/**
+ * একাধিক সেটিংস একসাথে সেভ (settings.html থেকে কল হবে)
+ */
+function saveMultipleSettings(settingsObj) {
+  for (let key in settingsObj) {
+    saveSetting(key, settingsObj[key]);
+  }
+  return true;
+}
+
+/**
+ * ডিফল্ট সেটিংস তৈরি (প্রথমবার চালানোর সময় কল করো)
+ */
+function initDefaultSettings() {
+  const defaults = {
+    companyName: 'মীম ইলেক্ট্রিক অ্যান্ড হার্ডওয়্যার',
+    companyAddress: 'খালিশপুর, খুলনা',
+    companyPhone: '01843-369936',
+    taxRate: '15',
+    currency: '৳',
+    invoicePrefix: 'INV-',
+    appLanguage: 'bn',                     // 👈 ভাষা অপশন (bn/en)
+    whatsappTemplate: 'প্রিয় {customer},\nইনভয়েস {invoice} - বকেয়া {due} টাকা পরিশোধ করুন।'
+  };
+  for (let key in defaults) {
+    const existing = getSetting(key);
+    if (!existing) saveSetting(key, defaults[key]);
+  }
+}

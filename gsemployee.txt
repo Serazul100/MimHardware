@@ -1,0 +1,411 @@
+/**
+ * gsemployee.gs
+ * Full backend for Employee Management System
+ * Supports: Employees, Attendance, Payroll, Salary Sheet, ID Card
+ */
+
+// ─── CONFIGURATION ───────────────────────────────────────────────
+
+const EMPLOYEE_SHEET = 'employees';
+const ATTENDANCE_SHEET = 'attendance';
+const SALARY_SHEET = 'salary_sheet'; // Optional – stores monthly salary history
+const PHOTO_FOLDER = 'Employee_Photos';
+
+// ─── INITIALISATION ─────────────────────────────────────────────
+
+function getSheet_(sheetName) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+  }
+  return sheet;
+}
+
+function getEmployeeSheet_() {
+  const sheet = getSheet_(EMPLOYEE_SHEET);
+  // Ensure headers exist
+  const headers = [
+    'ID', 'Employee Code', 'Name', 'Father Name', 'Mother Name',
+    'Gender', 'Date of Birth', 'National ID', 'Blood Group',
+    'Mobile Number', 'Alternative Mobile', 'Email',
+    'Present Address', 'Permanent Address',
+    'Department', 'Designation', 'Status',
+    'Join Date', 'Salary', 'Photo URL'
+  ];
+  const existingHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  if (existingHeaders.length === 0 || existingHeaders[0] !== 'ID') {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+  }
+  return sheet;
+}
+
+function getAttendanceSheet_() {
+  const sheet = getSheet_(ATTENDANCE_SHEET);
+  const headers = ['Employee ID', 'Date', 'Status'];
+  const existingHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  if (existingHeaders.length === 0 || existingHeaders[0] !== 'Employee ID') {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+  }
+  return sheet;
+}
+
+function getSalarySheet_() {
+  const sheet = getSheet_(SALARY_SHEET);
+  const headers = ['Employee ID', 'Month', 'Basic', 'Allowances', 'Gross', 'Tax', 'PF', 'Net Pay', 'Present Days', 'Working Days'];
+  const existingHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  if (existingHeaders.length === 0 || existingHeaders[0] !== 'Employee ID') {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+  }
+  return sheet;
+}
+
+function getPhotoFolder_() {
+  let folder = DriveApp.getFoldersByName(PHOTO_FOLDER);
+  if (folder.hasNext()) return folder.next();
+  else return DriveApp.createFolder(PHOTO_FOLDER);
+}
+
+// ─── EMPLOYEE CRUD ──────────────────────────────────────────────
+
+function getEmployees() {
+  const sheet = getEmployeeSheet_();
+  const data = sheet.getDataRange().getValues();
+  if (data.length < 2) return [];
+  const headers = data[0];
+  return data.slice(1).map(row => {
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = row[i]; });
+    return obj;
+  });
+}
+
+function getEmployeeById(id) {
+  return getEmployees().find(e => e.ID == id) || null;
+}
+
+function searchEmployees(keyword) {
+  if (!keyword) return getEmployees();
+  const employees = getEmployees();
+  const lower = keyword.toLowerCase();
+  return employees.filter(e => {
+    const searchable = [e['Name'], e['Employee Code'], e['Mobile Number'], e['Department'], e['Designation']]
+      .join(' ').toLowerCase();
+    return searchable.includes(lower);
+  });
+}
+
+function getNextEmployeeCode() {
+  const employees = getEmployees();
+  const codes = employees
+    .map(e => e['Employee Code'])
+    .filter(c => c && c.startsWith('EMP'))
+    .map(c => parseInt(c.replace('EMP', ''), 10))
+    .filter(n => !isNaN(n));
+  const max = codes.length ? Math.max(...codes) : 0;
+  return 'EMP' + String(max + 1).padStart(3, '0');
+}
+
+function saveEmployee(employee) {
+  const sheet = getEmployeeSheet_();
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const employees = getEmployees();
+  let existingIndex = -1;
+  if (employee.id) {
+    existingIndex = employees.findIndex(e => e.ID == employee.id);
+  }
+
+  // Map frontend fields to sheet columns
+  const fieldMap = {
+    'ID': employee.id || '',
+    'Employee Code': employee.employeeCode || getNextEmployeeCode(),
+    'Name': employee.name || '',
+    'Father Name': employee.fatherName || '',
+    'Mother Name': employee.motherName || '',
+    'Gender': employee.gender || '',
+    'Date of Birth': employee.dob || '',
+    'National ID': employee.nationalId || '',
+    'Blood Group': employee.bloodGroup || '',
+    'Mobile Number': employee.mobile || '',
+    'Alternative Mobile': employee.altMobile || '',
+    'Email': employee.email || '',
+    'Present Address': employee.presentAddress || '',
+    'Permanent Address': employee.permanentAddress || '',
+    'Department': employee.department || '',
+    'Designation': employee.designation || '',
+    'Status': employee.status || 'Active',
+    'Join Date': employee.joinDate || '',
+    'Salary': employee.salary || 0,
+    'Photo URL': employee.photo || ''
+  };
+
+  const rowData = headers.map(h => fieldMap[h] || '');
+
+  if (existingIndex !== -1) {
+    const rowNumber = existingIndex + 2;
+    sheet.getRange(rowNumber, 1, 1, rowData.length).setValues([rowData]);
+    return { success: true, message: 'Employee updated', id: employee.id };
+  } else {
+    // Generate new ID
+    if (!employee.id) {
+      const allIds = employees.map(e => parseInt(e.ID, 10)).filter(id => !isNaN(id));
+      const maxId = allIds.length ? Math.max(...allIds) : 0;
+      rowData[0] = (maxId + 1).toString();
+    }
+    sheet.appendRow(rowData);
+    return { success: true, message: 'Employee added', id: rowData[0] };
+  }
+}
+
+function updateEmployee(employee) {
+  return saveEmployee(employee);
+}
+
+function deleteEmployee(id) {
+  const sheet = getEmployeeSheet_();
+  const employees = getEmployees();
+  const index = employees.findIndex(e => e.ID == id);
+  if (index === -1) throw new Error('Employee not found');
+  sheet.deleteRow(index + 2);
+  return { success: true, message: 'Employee deleted' };
+}
+
+// ─── PHOTO UPLOAD ──────────────────────────────────────────────
+
+function uploadPhoto(blob, fileName) {
+  if (!blob) throw new Error('No file provided');
+  const folder = getPhotoFolder_();
+  const file = folder.createFile(blob);
+  if (fileName) file.setName(fileName);
+  return file.getUrl();
+}
+
+// ─── ATTENDANCE ─────────────────────────────────────────────────
+
+/**
+ * Returns attendance records for a specific date.
+ * If no records exist, returns default 'Present' for all active employees.
+ */
+function getAttendanceByDate(date) {
+  const sheet = getAttendanceSheet_();
+  const data = sheet.getDataRange().getValues();
+  if (data.length < 2) {
+    // No records: return default present for all active employees
+    const employees = getEmployees().filter(e => e.Status === 'Active');
+    return employees.map(e => ({ employeeId: e.ID, date: date, status: 'Present' }));
+  }
+  const headers = data[0];
+  const rows = data.slice(1);
+  const records = rows
+    .filter(row => row[headers.indexOf('Date')] === date)
+    .map(row => ({
+      employeeId: row[headers.indexOf('Employee ID')].toString(),
+      date: row[headers.indexOf('Date')],
+      status: row[headers.indexOf('Status')]
+    }));
+
+  // If no records for this date, default present for all active employees
+  if (records.length === 0) {
+    const employees = getEmployees().filter(e => e.Status === 'Active');
+    return employees.map(e => ({ employeeId: e.ID, date: date, status: 'Present' }));
+  }
+  return records;
+}
+
+/**
+ * Bulk save attendance records.
+ * Each record: { employeeId, date, status }
+ */
+function markAttendance(records) {
+  if (!records || records.length === 0) {
+    throw new Error('No attendance records to save');
+  }
+  const sheet = getAttendanceSheet_();
+  // For each record, we need to update if exists, else append.
+  // We'll clear existing records for that date to avoid duplicates.
+  const date = records[0].date;
+  const allData = sheet.getDataRange().getValues();
+  if (allData.length > 1) {
+    const headers = allData[0];
+    const dateCol = headers.indexOf('Date');
+    const rowsToKeep = allData.slice(1).filter(row => row[dateCol] !== date);
+    // Clear the sheet and write back kept rows + new rows
+    sheet.clearContents();
+    // Write header
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    // Write kept rows
+    if (rowsToKeep.length > 0) {
+      sheet.getRange(2, 1, rowsToKeep.length, headers.length).setValues(rowsToKeep);
+    }
+    // Append new rows
+    const newRows = records.map(r => [r.employeeId, r.date, r.status]);
+    if (newRows.length > 0) {
+      sheet.getRange(sheet.getLastRow() + 1, 1, newRows.length, 3).setValues(newRows);
+    }
+  } else {
+    // First time: just append
+    const newRows = records.map(r => [r.employeeId, r.date, r.status]);
+    sheet.getRange(2, 1, newRows.length, 3).setValues(newRows);
+  }
+  return { success: true, message: 'Attendance saved' };
+}
+
+/**
+ * Get attendance for an employee between two dates.
+ * Useful for salary calculation.
+ */
+function getAttendanceForEmployee(employeeId, startDate, endDate) {
+  const sheet = getAttendanceSheet_();
+  const data = sheet.getDataRange().getValues();
+  if (data.length < 2) return [];
+  const headers = data[0];
+  const empIdCol = headers.indexOf('Employee ID');
+  const dateCol = headers.indexOf('Date');
+  const statusCol = headers.indexOf('Status');
+  const rows = data.slice(1);
+  return rows
+    .filter(row => row[empIdCol].toString() === employeeId.toString() &&
+      new Date(row[dateCol]) >= new Date(startDate) &&
+      new Date(row[dateCol]) <= new Date(endDate))
+    .map(row => ({
+      date: row[dateCol],
+      status: row[statusCol]
+    }));
+}
+
+// ─── SALARY SHEET ───────────────────────────────────────────────
+
+/**
+ * Calculate salary for a single employee for a given month.
+ * Returns an object with all salary components.
+ */
+function calculateSalaryForEmployee(employeeId, month) {
+  const emp = getEmployeeById(employeeId);
+  if (!emp) throw new Error('Employee not found');
+
+  // Parse month
+  const [year, mon] = month.split('-').map(Number);
+  const daysInMonth = new Date(year, mon, 0).getDate();
+
+  // Determine working days (Monday-Friday)
+  let workingDays = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dt = new Date(year, mon - 1, d);
+    const day = dt.getDay();
+    if (day !== 0 && day !== 6) workingDays++;
+  }
+
+  // Get basic salary and allowances
+  const basic = parseFloat(emp.Salary) || 0;
+  const houseRent = Math.round(basic * 0.30);
+  const medical = Math.round(basic * 0.10);
+  const transport = Math.round(basic * 0.05);
+  const other = Math.round(basic * 0.03);
+  const allowances = houseRent + medical + transport + other;
+
+  // Fetch attendance for this employee in the month
+  const start = new Date(year, mon - 1, 1);
+  const end = new Date(year, mon - 1, daysInMonth);
+  const attendance = getAttendanceForEmployee(employeeId, start, end);
+
+  // Count present days (Present, Half-day counts as 0.5, Leave/Holiday count as present)
+  let present = 0;
+  attendance.forEach(rec => {
+    const status = rec.status;
+    if (status === 'Present') present += 1;
+    else if (status === 'Half-day') present += 0.5;
+    else if (status === 'Leave' || status === 'Holiday') present += 1;
+    // Absent adds nothing
+  });
+
+  // If no attendance records exist, assume full present (for new employees)
+  if (attendance.length === 0) {
+    present = workingDays;
+  }
+
+  // Calculate daily rate and gross
+  const dailyRate = (basic + allowances) / workingDays;
+  const gross = dailyRate * present;
+  const tax = Math.round(gross * 0.05);
+  const pf = Math.round(gross * 0.08);
+  const net = gross - tax - pf;
+
+  return {
+    employeeId,
+    month,
+    basic,
+    allowances,
+    gross,
+    tax,
+    pf,
+    net,
+    presentDays: present,
+    workingDays,
+    absentDays: workingDays - present
+  };
+}
+
+/**
+ * Generate salary sheet for a month, optionally for a specific employee.
+ * Returns an array of salary objects.
+ */
+function generateSalarySheet(month, employeeId = null) {
+  let employees = employeeId ? [getEmployeeById(employeeId)] : getEmployees();
+  employees = employees.filter(e => e.Status === 'Active');
+  const result = employees.map(e => calculateSalaryForEmployee(e.ID, month));
+  // Optionally, we can store the result in the salary_sheet sheet for history
+  // (commented out to keep it on-demand)
+  // storeSalarySheet(month, result);
+  return result;
+}
+
+/**
+ * (Optional) Store salary sheet to history sheet.
+ */
+function storeSalarySheet(month, salaryData) {
+  const sheet = getSalarySheet_();
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const rows = salaryData.map(s => [
+    s.employeeId,
+    s.month,
+    s.basic,
+    s.allowances,
+    s.gross,
+    s.tax,
+    s.pf,
+    s.net,
+    s.presentDays,
+    s.workingDays
+  ]);
+  // Remove existing entries for the same month to avoid duplicates
+  const allData = sheet.getDataRange().getValues();
+  if (allData.length > 1) {
+    const monthCol = headers.indexOf('Month');
+    const rowsToKeep = allData.slice(1).filter(row => row[monthCol] !== month);
+    sheet.clearContents();
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    if (rowsToKeep.length > 0) {
+      sheet.getRange(2, 1, rowsToKeep.length, headers.length).setValues(rowsToKeep);
+    }
+    if (rows.length > 0) {
+      sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+    }
+  } else {
+    sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+  }
+}
+
+// ─── TEST FUNCTION ──────────────────────────────────────────────
+
+function test() {
+  // Example: get employees
+  // Logger.log(getEmployees());
+  // Example: generate salary sheet
+  // Logger.log(generateSalarySheet('2026-06'));
+  // Example: save attendance
+  // const records = [{ employeeId: '1', date: '2026-06-18', status: 'Present' }];
+  // markAttendance(records);
+}

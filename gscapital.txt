@@ -1,0 +1,1862 @@
+// ============================================================
+// MIM ERP - CAPITAL MANAGEMENT BACKEND
+// File: gscapital.gs
+//
+// Works with capital.html provided by user.
+//
+// Main features:
+// 1. Capital In / Capital Out
+// 2. Running Capital Balance
+// 3. Cash in Hand
+// 4. Bank Balance
+// 5. Assets / Liabilities
+// 6. Cash Flow
+// 7. Inventory Capital
+// 8. Receivable / Payable
+// 9. Monthly Profit
+// 10. Capital Growth
+// 11. Edit / Delete
+// 12. CSV Export
+// ============================================================
+
+
+// ============================================================
+// SHEET NAMES
+// ============================================================
+
+var CAPITAL_SHEET_NAME = 'Capital';
+var SALES_SHEET_NAME = 'SaleOrders';
+var SALES_DETAILS_SHEET_NAME = 'SalesDetails';
+var PURCHASE_SHEET_NAME = 'PurchaseOrders';
+var PURCHASE_ITEMS_SHEET_NAME = 'PurchaseItems';
+var EXPENSE_SHEET_NAME = 'expenses';
+var RECEIPT_SHEET_NAME = 'ReceiptTransactions';
+var PAYMENT_SHEET_NAME = 'Payments';
+var PRODUCTS_SHEET_NAME = 'Products';
+var CUSTOMERS_SHEET_NAME = 'Customers';
+var SUPPLIERS_SHEET_NAME = 'Suppliers';
+
+
+// ============================================================
+// BASIC HELPERS
+// ============================================================
+
+function _capGetSheet(name) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  return ss.getSheetByName(name);
+}
+
+
+function _capNormalizeHeader(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/_/g, ' ');
+}
+
+
+function _capFindHeader(headers, possibleNames) {
+  var normalized = headers.map(_capNormalizeHeader);
+
+  for (var i = 0; i < possibleNames.length; i++) {
+    var target = _capNormalizeHeader(possibleNames[i]);
+    var index = normalized.indexOf(target);
+
+    if (index !== -1) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+
+function _capNumber(value) {
+  if (value === null || value === undefined || value === '') {
+    return 0;
+  }
+
+  if (typeof value === 'number') {
+    return isNaN(value) ? 0 : value;
+  }
+
+  var n = parseFloat(
+    String(value)
+      .replace(/৳/g, '')
+      .replace(/,/g, '')
+      .trim()
+  );
+
+  return isNaN(n) ? 0 : n;
+}
+
+
+function _capDate(value) {
+  if (!value) return null;
+
+  if (Object.prototype.toString.call(value) === '[object Date]') {
+    return value;
+  }
+
+  var d = new Date(value);
+
+  if (isNaN(d.getTime())) {
+    return null;
+  }
+
+  return d;
+}
+
+
+function _capDateString(value) {
+  var d = _capDate(value);
+
+  if (!d) return '';
+
+  return Utilities.formatDate(
+    d,
+    Session.getScriptTimeZone() || 'Asia/Dhaka',
+    'dd/MM/yyyy'
+  );
+}
+
+
+function _capMethod(value) {
+  return String(value || 'Cash').trim() || 'Cash';
+}
+
+
+// ============================================================
+// CREATE / ENSURE CAPITAL SHEET
+// ============================================================
+
+function ensureCapitalSheet() {
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(CAPITAL_SHEET_NAME);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(CAPITAL_SHEET_NAME);
+  }
+
+  if (sheet.getLastRow() === 0) {
+
+    sheet.getRange(1, 1, 1, 5).setValues([[
+      'Date',
+      'Amount',
+      'Description',
+      'Running Balance',
+      'Payment Method'
+    ]]);
+
+    sheet.getRange(1, 1, 1, 5)
+      .setFontWeight('bold')
+      .setBackground('#1e3a5f')
+      .setFontColor('#ffffff');
+
+    sheet.setFrozenRows(1);
+
+    sheet.getRange('A:A')
+      .setNumberFormat('dd/MM/yyyy');
+
+    sheet.getRange('B:D')
+      .setNumberFormat('#,##0.00');
+
+    sheet.setColumnWidth(1, 110);
+    sheet.setColumnWidth(2, 120);
+    sheet.setColumnWidth(3, 260);
+    sheet.setColumnWidth(4, 140);
+    sheet.setColumnWidth(5, 130);
+  }
+
+  return sheet;
+}
+
+
+// ============================================================
+// RECALCULATE RUNNING CAPITAL BALANCE
+//
+// Running Balance is ALWAYS calculated from chronological
+// Capital transactions.
+//
+// Positive amount = Capital In
+// Negative amount = Capital Out
+// ============================================================
+
+function recalculateCapitalRunningBalance() {
+
+  var sheet = ensureCapitalSheet();
+
+  var lastRow = sheet.getLastRow();
+
+  if (lastRow < 2) {
+    return;
+  }
+
+  var data = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
+
+  // Sort by date, but keep original row reference
+  var rows = [];
+
+  for (var i = 0; i < data.length; i++) {
+
+    rows.push({
+      originalRow: i + 2,
+      date: _capDate(data[i][0]),
+      amount: _capNumber(data[i][1]),
+      description: data[i][2],
+      running: data[i][3],
+      method: data[i][4]
+    });
+  }
+
+  rows.sort(function(a, b) {
+
+    var da = a.date ? a.date.getTime() : 0;
+    var db = b.date ? b.date.getTime() : 0;
+
+    if (da !== db) {
+      return da - db;
+    }
+
+    return a.originalRow - b.originalRow;
+  });
+
+  var running = 0;
+
+  for (var j = 0; j < rows.length; j++) {
+
+    running += rows[j].amount;
+
+    sheet.getRange(rows[j].originalRow, 4)
+      .setValue(running);
+  }
+
+  sheet.getRange(2, 4, lastRow - 1, 1)
+    .setNumberFormat('#,##0.00');
+}
+
+
+// ============================================================
+// GET CAPITAL ENTRIES
+//
+// HTML:
+// getCapitalEntries()
+//
+// Returns:
+// [
+//   {
+//     rowIndex,
+//     date,
+//     amount,
+//     description,
+//     runningBalance,
+//     paymentMethod
+//   }
+// ]
+// ============================================================
+
+function getCapitalEntries() {
+
+  var sheet = ensureCapitalSheet();
+
+  var lastRow = sheet.getLastRow();
+
+  if (lastRow < 2) {
+    return [];
+  }
+
+  var values = sheet
+    .getRange(2, 1, lastRow - 1, 5)
+    .getValues();
+
+  var result = [];
+
+  for (var i = 0; i < values.length; i++) {
+
+    var amount = _capNumber(values[i][1]);
+
+    result.push({
+      rowIndex: i + 2,
+      date: values[i][0]
+        ? Utilities.formatDate(
+            new Date(values[i][0]),
+            Session.getScriptTimeZone() || 'Asia/Dhaka',
+            'yyyy-MM-dd'
+          )
+        : '',
+
+      amount: amount,
+
+      description: String(values[i][2] || ''),
+
+      runningBalance: _capNumber(values[i][3]),
+
+      paymentMethod: _capMethod(values[i][4])
+    });
+  }
+
+  // Newest first for dashboard
+  result.sort(function(a, b) {
+
+    var da = a.date ? new Date(a.date).getTime() : 0;
+    var db = b.date ? new Date(b.date).getTime() : 0;
+
+    return db - da;
+  });
+
+  return result;
+}
+
+
+// ============================================================
+// ADD CAPITAL ENTRY
+//
+// HTML:
+// addCapitalEntry(amount, desc, date, method)
+// ============================================================
+
+function addCapitalEntry(amount, description, date, paymentMethod) {
+
+  try {
+
+    var sheet = ensureCapitalSheet();
+
+    amount = _capNumber(amount);
+
+    if (amount === 0) {
+      return {
+        success: false,
+        error: 'Amount must be greater than zero.'
+      };
+    }
+
+    var d = _capDate(date);
+
+    if (!d) {
+      d = new Date();
+    }
+
+    sheet.appendRow([
+      d,
+      amount,
+      description || '',
+      0,
+      _capMethod(paymentMethod)
+    ]);
+
+    var newRow = sheet.getLastRow();
+
+    sheet.getRange(newRow, 1)
+      .setNumberFormat('dd/MM/yyyy');
+
+    sheet.getRange(newRow, 2, 1, 2)
+      .setNumberFormat('#,##0.00');
+
+    recalculateCapitalRunningBalance();
+
+    return {
+      success: true,
+      message: 'Capital transaction added successfully.'
+    };
+
+  } catch (err) {
+
+    return {
+      success: false,
+      error: err.message
+    };
+  }
+}
+
+
+// ============================================================
+// UPDATE CAPITAL ENTRY
+//
+// HTML:
+// updateCapitalEntry(rowIndex, amount, desc, date, method)
+// ============================================================
+
+function updateCapitalEntry(
+  rowIndex,
+  amount,
+  description,
+  date,
+  paymentMethod
+) {
+
+  try {
+
+    var sheet = ensureCapitalSheet();
+
+    rowIndex = parseInt(rowIndex, 10);
+
+    if (isNaN(rowIndex) || rowIndex < 2) {
+      return {
+        success: false,
+        error: 'Invalid row index.'
+      };
+    }
+
+    if (rowIndex > sheet.getLastRow()) {
+      return {
+        success: false,
+        error: 'Transaction not found.'
+      };
+    }
+
+    amount = _capNumber(amount);
+
+    if (amount === 0) {
+      return {
+        success: false,
+        error: 'Amount must be greater than zero.'
+      };
+    }
+
+    var d = _capDate(date);
+
+    if (!d) {
+      d = new Date();
+    }
+
+    sheet.getRange(rowIndex, 1, 1, 5).setValues([[
+      d,
+      amount,
+      description || '',
+      0,
+      _capMethod(paymentMethod)
+    ]]);
+
+    sheet.getRange(rowIndex, 1)
+      .setNumberFormat('dd/MM/yyyy');
+
+    sheet.getRange(rowIndex, 2, 1, 2)
+      .setNumberFormat('#,##0.00');
+
+    recalculateCapitalRunningBalance();
+
+    return {
+      success: true,
+      message: 'Capital transaction updated successfully.'
+    };
+
+  } catch (err) {
+
+    return {
+      success: false,
+      error: err.message
+    };
+  }
+}
+
+
+// ============================================================
+// DELETE CAPITAL ENTRY
+//
+// HTML:
+// deleteCapitalEntry(rowIndex)
+// ============================================================
+
+function deleteCapitalEntry(rowIndex) {
+
+  try {
+
+    var sheet = ensureCapitalSheet();
+
+    rowIndex = parseInt(rowIndex, 10);
+
+    if (isNaN(rowIndex) || rowIndex < 2) {
+      return {
+        success: false,
+        error: 'Invalid row index.'
+      };
+    }
+
+    if (rowIndex > sheet.getLastRow()) {
+      return {
+        success: false,
+        error: 'Transaction not found.'
+      };
+    }
+
+    sheet.deleteRow(rowIndex);
+
+    recalculateCapitalRunningBalance();
+
+    return {
+      success: true,
+      message: 'Capital transaction deleted successfully.'
+    };
+
+  } catch (err) {
+
+    return {
+      success: false,
+      error: err.message
+    };
+  }
+}
+
+
+// ============================================================
+// GET CAPITAL OVERVIEW
+// ============================================================
+
+function getCapitalOverview() {
+
+  var sheet = ensureCapitalSheet();
+
+  var lastRow = sheet.getLastRow();
+
+  var initialCapital = 0;
+  var additionalAdded = 0;
+  var withdrawals = 0;
+  var currentCapital = 0;
+
+  if (lastRow >= 2) {
+
+    var values = sheet
+      .getRange(2, 1, lastRow - 1, 5)
+      .getValues();
+
+    var positiveRows = [];
+
+    for (var i = 0; i < values.length; i++) {
+
+      var amount = _capNumber(values[i][1]);
+
+      if (amount > 0) {
+
+        positiveRows.push({
+          date: _capDate(values[i][0]),
+          amount: amount
+        });
+
+        additionalAdded += amount;
+
+      } else if (amount < 0) {
+
+        withdrawals += Math.abs(amount);
+      }
+    }
+
+    // First capital entry = initial capital
+    if (positiveRows.length > 0) {
+
+      positiveRows.sort(function(a, b) {
+
+        var da = a.date ? a.date.getTime() : 0;
+        var db = b.date ? b.date.getTime() : 0;
+
+        return da - db;
+      });
+
+      initialCapital = positiveRows[0].amount;
+      additionalAdded -= initialCapital;
+    }
+
+    currentCapital =
+      initialCapital +
+      additionalAdded -
+      withdrawals;
+  }
+
+  var growthPercent = 0;
+
+  if (initialCapital !== 0) {
+
+    growthPercent =
+      ((currentCapital - initialCapital) /
+        Math.abs(initialCapital)) * 100;
+  }
+
+  return {
+    initialCapital: initialCapital,
+    additionalAdded: additionalAdded,
+    withdrawals: withdrawals,
+    currentCapital: currentCapital,
+    growthPercent: growthPercent
+  };
+}
+
+
+// ============================================================
+// PAYMENT METHOD TOTAL
+//
+// Used for Cash / Bank balance calculation.
+// ============================================================
+
+function _capGetCapitalMethodTotals() {
+
+  var sheet = ensureCapitalSheet();
+
+  var result = {
+    cashIn: 0,
+    cashOut: 0,
+    bankIn: 0,
+    bankOut: 0,
+    loanIn: 0,
+    loanOut: 0,
+    otherIn: 0,
+    otherOut: 0
+  };
+
+  var lastRow = sheet.getLastRow();
+
+  if (lastRow < 2) {
+    return result;
+  }
+
+  var values = sheet
+    .getRange(2, 1, lastRow - 1, 5)
+    .getValues();
+
+  for (var i = 0; i < values.length; i++) {
+
+    var amount = _capNumber(values[i][1]);
+    var method = _capMethod(values[i][4]).toLowerCase();
+
+    if (method === 'cash') {
+
+      if (amount >= 0) {
+        result.cashIn += amount;
+      } else {
+        result.cashOut += Math.abs(amount);
+      }
+
+    } else if (method === 'bank') {
+
+      if (amount >= 0) {
+        result.bankIn += amount;
+      } else {
+        result.bankOut += Math.abs(amount);
+      }
+
+    } else if (method === 'loan') {
+
+      if (amount >= 0) {
+        result.loanIn += amount;
+      } else {
+        result.loanOut += Math.abs(amount);
+      }
+
+    } else {
+
+      if (amount >= 0) {
+        result.otherIn += amount;
+      } else {
+        result.otherOut += Math.abs(amount);
+      }
+    }
+  }
+
+  return result;
+}
+
+
+// ============================================================
+// CASH FLOW
+//
+// IMPORTANT:
+//
+// Capital cash is ONLY ONE PART of Cash in Hand.
+//
+// Cash in Hand:
+//
+// Opening Cash
+// + Cash Sales Collection
+// + Cash Capital Added
+// + Other Cash In
+// - Cash Purchases
+// - Cash Supplier Payments
+// - Cash Expenses
+// - Cash Capital Withdrawals
+//
+// This prevents the previous "Cash in Hand" error.
+// ============================================================
+
+function getCashFlowData() {
+
+  var capital = _capGetCapitalMethodTotals();
+
+  var salesCollection = _capGetCashSalesCollection();
+  var purchases = _capGetCashPurchases();
+  var expenses = _capGetCashExpenses();
+  var supplierPayments = _capGetCashSupplierPayments();
+
+  // If you have an opening cash system later,
+  // change this to your opening balance.
+  var openingCash = 0;
+
+  var cashCapitalIn = capital.cashIn;
+  var cashCapitalOut = capital.cashOut;
+
+  var closingCash =
+    openingCash
+    + salesCollection
+    + cashCapitalIn
+    - purchases
+    - expenses
+    - supplierPayments
+    - cashCapitalOut;
+
+  return {
+
+    openingCash: openingCash,
+
+    salesCollection: salesCollection,
+
+    capitalAdded: cashCapitalIn,
+
+    purchases: purchases,
+
+    withdrawals: cashCapitalOut,
+
+    expenses: expenses,
+
+    supplierPayments: supplierPayments,
+
+    closingCash: closingCash
+  };
+}
+
+
+// ============================================================
+// CASH SALES COLLECTION
+//
+// Attempts to detect SaleOrders payment method and paid amount.
+// ============================================================
+
+function _capGetCashSalesCollection() {
+
+  var sheet = _capGetSheet(SALES_SHEET_NAME);
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return 0;
+  }
+
+  var data = sheet.getDataRange().getValues();
+
+  var headers = data[0];
+
+  var methodCol = _capFindHeader(headers, [
+    'Payment Method',
+    'PaymentMethod',
+    'Method',
+    'Payment Type'
+  ]);
+
+  var paidCol = _capFindHeader(headers, [
+    'Paid',
+    'Paid Amount',
+    'Amount Paid',
+    'Received',
+    'Received Amount',
+    'Total Paid'
+  ]);
+
+  var totalCol = _capFindHeader(headers, [
+    'Grand Total',
+    'Total',
+    'Amount',
+    'Sale Amount'
+  ]);
+
+  var dueCol = _capFindHeader(headers, [
+    'Due',
+    'Balance Due',
+    'Receivable'
+  ]);
+
+  var result = 0;
+
+  for (var i = 1; i < data.length; i++) {
+
+    var method = methodCol >= 0
+      ? _capMethod(data[i][methodCol]).toLowerCase()
+      : 'cash';
+
+    if (method !== 'cash') {
+      continue;
+    }
+
+    var paid = 0;
+
+    if (paidCol >= 0) {
+
+      paid = _capNumber(data[i][paidCol]);
+
+    } else if (totalCol >= 0) {
+
+      var total = _capNumber(data[i][totalCol]);
+      var due = dueCol >= 0 ? _capNumber(data[i][dueCol]) : 0;
+
+      paid = total - due;
+    }
+
+    result += Math.max(0, paid);
+  }
+
+  return result;
+}
+
+
+// ============================================================
+// CASH PURCHASES
+// ============================================================
+
+function _capGetCashPurchases() {
+
+  var sheet = _capGetSheet(PURCHASE_SHEET_NAME);
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return 0;
+  }
+
+  var data = sheet.getDataRange().getValues();
+
+  var headers = data[0];
+
+  var methodCol = _capFindHeader(headers, [
+    'Payment Method',
+    'PaymentMethod',
+    'Method'
+  ]);
+
+  var paidCol = _capFindHeader(headers, [
+    'Paid',
+    'Paid Amount',
+    'Amount Paid',
+    'Payment'
+  ]);
+
+  var totalCol = _capFindHeader(headers, [
+    'Grand Total',
+    'Total',
+    'Amount',
+    'Purchase Amount'
+  ]);
+
+  var dueCol = _capFindHeader(headers, [
+    'Due',
+    'Balance Due',
+    'Payable'
+  ]);
+
+  var result = 0;
+
+  for (var i = 1; i < data.length; i++) {
+
+    var method = methodCol >= 0
+      ? _capMethod(data[i][methodCol]).toLowerCase()
+      : 'cash';
+
+    if (method !== 'cash') {
+      continue;
+    }
+
+    var paid = 0;
+
+    if (paidCol >= 0) {
+
+      paid = _capNumber(data[i][paidCol]);
+
+    } else if (totalCol >= 0) {
+
+      var total = _capNumber(data[i][totalCol]);
+      var due = dueCol >= 0
+        ? _capNumber(data[i][dueCol])
+        : 0;
+
+      paid = total - due;
+    }
+
+    result += Math.max(0, paid);
+  }
+
+  return result;
+}
+
+
+// ============================================================
+// CASH EXPENSES
+// ============================================================
+
+function _capGetCashExpenses() {
+
+  var sheet = _capGetSheet(EXPENSE_SHEET_NAME);
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return 0;
+  }
+
+  var data = sheet.getDataRange().getValues();
+
+  var headers = data[0];
+
+  var amountCol = _capFindHeader(headers, [
+    'Amount',
+    'Expense Amount',
+    'Total'
+  ]);
+
+  var methodCol = _capFindHeader(headers, [
+    'Payment Method',
+    'PaymentMethod',
+    'Method'
+  ]);
+
+  var result = 0;
+
+  for (var i = 1; i < data.length; i++) {
+
+    var amount =
+      amountCol >= 0
+        ? _capNumber(data[i][amountCol])
+        : 0;
+
+    var method =
+      methodCol >= 0
+        ? _capMethod(data[i][methodCol]).toLowerCase()
+        : 'cash';
+
+    if (method === 'cash') {
+      result += Math.max(0, amount);
+    }
+  }
+
+  return result;
+}
+
+
+// ============================================================
+// CASH SUPPLIER PAYMENTS
+//
+// Payments sheet:
+// Date | Supplier | Amount | Method
+// ============================================================
+
+function _capGetCashSupplierPayments() {
+
+  var sheet = _capGetSheet(PAYMENT_SHEET_NAME);
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return 0;
+  }
+
+  var data = sheet.getDataRange().getValues();
+
+  var headers = data[0];
+
+  var amountCol = _capFindHeader(headers, [
+    'Amount',
+    'Payment Amount',
+    'Total'
+  ]);
+
+  var methodCol = _capFindHeader(headers, [
+    'Method',
+    'Payment Method',
+    'PaymentMethod'
+  ]);
+
+  var result = 0;
+
+  for (var i = 1; i < data.length; i++) {
+
+    var amount =
+      amountCol >= 0
+        ? _capNumber(data[i][amountCol])
+        : 0;
+
+    var method =
+      methodCol >= 0
+        ? _capMethod(data[i][methodCol]).toLowerCase()
+        : 'cash';
+
+    if (method === 'cash') {
+      result += Math.max(0, amount);
+    }
+  }
+
+  return result;
+}
+
+
+// ============================================================
+// INVENTORY CAPITAL
+// ============================================================
+
+function _capGetInventory() {
+
+  var sheet = _capGetSheet(PRODUCTS_SHEET_NAME);
+
+  var result = {
+    items: [],
+    total: 0
+  };
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return result;
+  }
+
+  var data = sheet.getDataRange().getValues();
+
+  var headers = data[0];
+
+  var nameCol = _capFindHeader(headers, [
+    'Product Name',
+    'Product',
+    'Name'
+  ]);
+
+  var qtyCol = _capFindHeader(headers, [
+    'Stock',
+    'Qty',
+    'Quantity',
+    'Remaining QTY',
+    'Remaining Qty'
+  ]);
+
+  var costCol = _capFindHeader(headers, [
+    'Cost',
+    'Purchase Price',
+    'Cost Price',
+    'Buying Price'
+  ]);
+
+  if (nameCol < 0 || qtyCol < 0) {
+    return result;
+  }
+
+  for (var i = 1; i < data.length; i++) {
+
+    var name = String(
+      nameCol >= 0 ? data[i][nameCol] : ''
+    );
+
+    var qty = _capNumber(data[i][qtyCol]);
+
+    var cost =
+      costCol >= 0
+        ? _capNumber(data[i][costCol])
+        : 0;
+
+    var value = qty * cost;
+
+    if (qty === 0 && value === 0) {
+      continue;
+    }
+
+    result.items.push({
+      name: name,
+      qty: qty,
+      cost: cost,
+      value: value
+    });
+
+    result.total += value;
+  }
+
+  return result;
+}
+
+
+// ============================================================
+// RECEIVABLE
+// ============================================================
+
+function _capGetReceivables() {
+
+  var sheet = _capGetSheet(CUSTOMERS_SHEET_NAME);
+
+  var result = [];
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return result;
+  }
+
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+
+  var nameCol = _capFindHeader(headers, [
+    'Customer Name',
+    'Customer',
+    'Name'
+  ]);
+
+  var dueCol = _capFindHeader(headers, [
+    'Balance Due',
+    'Due',
+    'Receivable',
+    'Balance'
+  ]);
+
+  if (nameCol < 0 || dueCol < 0) {
+    return result;
+  }
+
+  for (var i = 1; i < data.length; i++) {
+
+    var name = String(data[i][nameCol] || '');
+    var amount = _capNumber(data[i][dueCol]);
+
+    if (amount > 0) {
+
+      result.push({
+        name: name,
+        amount: amount
+      });
+    }
+  }
+
+  return result;
+}
+
+
+// ============================================================
+// PAYABLE
+// ============================================================
+
+function _capGetPayables() {
+
+  var sheet = _capGetSheet(SUPPLIERS_SHEET_NAME);
+
+  var result = [];
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return result;
+  }
+
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+
+  var nameCol = _capFindHeader(headers, [
+    'Supplier Name',
+    'Supplier',
+    'Name'
+  ]);
+
+  var dueCol = _capFindHeader(headers, [
+    'Balance Payable',
+    'Payable',
+    'Due',
+    'Balance'
+  ]);
+
+  if (nameCol < 0 || dueCol < 0) {
+    return result;
+  }
+
+  for (var i = 1; i < data.length; i++) {
+
+    var name = String(data[i][nameCol] || '');
+    var amount = _capNumber(data[i][dueCol]);
+
+    if (amount > 0) {
+
+      result.push({
+        name: name,
+        amount: amount
+      });
+    }
+  }
+
+  return result;
+}
+
+
+// ============================================================
+// NET PROFIT
+//
+// Basic calculation:
+// Sales - Cost of Goods Sold - Expenses
+//
+// If your existing dashboard already has a more accurate COGS
+// calculation, this function can be replaced with that function.
+// ============================================================
+
+function _capGetNetProfit() {
+
+  var totalSales = _capGetTotalSales();
+  var totalExpenses = _capGetTotalExpenses();
+  var cogs = _capGetCOGS();
+
+  return totalSales - cogs - totalExpenses;
+}
+
+
+// ============================================================
+// TOTAL SALES
+// ============================================================
+
+function _capGetTotalSales() {
+
+  var sheet = _capGetSheet(SALES_SHEET_NAME);
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return 0;
+  }
+
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+
+  var totalCol = _capFindHeader(headers, [
+    'Grand Total',
+    'Total',
+    'Amount',
+    'Sale Amount'
+  ]);
+
+  if (totalCol < 0) {
+    return 0;
+  }
+
+  var result = 0;
+
+  for (var i = 1; i < data.length; i++) {
+    result += Math.max(
+      0,
+      _capNumber(data[i][totalCol])
+    );
+  }
+
+  return result;
+}
+
+
+// ============================================================
+// TOTAL EXPENSE
+// ============================================================
+
+function _capGetTotalExpenses() {
+
+  var sheet = _capGetSheet(EXPENSE_SHEET_NAME);
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return 0;
+  }
+
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+
+  var amountCol = _capFindHeader(headers, [
+    'Amount',
+    'Expense Amount',
+    'Total'
+  ]);
+
+  if (amountCol < 0) {
+    return 0;
+  }
+
+  var result = 0;
+
+  for (var i = 1; i < data.length; i++) {
+    result += Math.max(
+      0,
+      _capNumber(data[i][amountCol])
+    );
+  }
+
+  return result;
+}
+
+
+// ============================================================
+// COGS
+//
+// Uses SalesDetails if available.
+//
+// Expected columns:
+// Product Name / Product
+// Qty
+// Cost / Cost Price
+// ============================================================
+
+function _capGetCOGS() {
+
+  var sheet = _capGetSheet(SALES_DETAILS_SHEET_NAME);
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return 0;
+  }
+
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+
+  var qtyCol = _capFindHeader(headers, [
+    'Qty',
+    'Quantity',
+    'QTY'
+  ]);
+
+  var costCol = _capFindHeader(headers, [
+    'Cost',
+    'Cost Price',
+    'Purchase Price'
+  ]);
+
+  if (qtyCol < 0 || costCol < 0) {
+    return 0;
+  }
+
+  var result = 0;
+
+  for (var i = 1; i < data.length; i++) {
+
+    var qty = _capNumber(data[i][qtyCol]);
+    var cost = _capNumber(data[i][costCol]);
+
+    result += qty * cost;
+  }
+
+  return result;
+}
+
+
+// ============================================================
+// BANK BALANCE
+// ============================================================
+
+function _capGetBankBalance() {
+
+  var capital = _capGetCapitalMethodTotals();
+
+  var bankCapital =
+    capital.bankIn -
+    capital.bankOut;
+
+  // We can also add bank receipts/payments later.
+  return bankCapital;
+}
+
+
+// ============================================================
+// SUPPLIER PAYABLE
+// ============================================================
+
+function _capGetTotalPayable() {
+
+  var list = _capGetPayables();
+
+  var total = 0;
+
+  list.forEach(function(item) {
+    total += _capNumber(item.amount);
+  });
+
+  return total;
+}
+
+
+// ============================================================
+// CUSTOMER RECEIVABLE
+// ============================================================
+
+function _capGetTotalReceivable() {
+
+  var list = _capGetReceivables();
+
+  var total = 0;
+
+  list.forEach(function(item) {
+    total += _capNumber(item.amount);
+  });
+
+  return total;
+}
+
+
+// ============================================================
+// LOAN
+// ============================================================
+
+function _capGetLoanBalance() {
+
+  var capital = _capGetCapitalMethodTotals();
+
+  return Math.max(
+    0,
+    capital.loanIn - capital.loanOut
+  );
+}
+
+
+// ============================================================
+// FULL DASHBOARD DATA
+//
+// HTML calls:
+// getFullDashboardData()
+// ============================================================
+
+function getFullDashboardData() {
+
+  try {
+
+    // Make sure Capital sheet exists
+    ensureCapitalSheet();
+
+    // Recalculate running balance every time
+    // dashboard loads.
+    recalculateCapitalRunningBalance();
+
+    // Capital
+    var overview = getCapitalOverview();
+
+    // Cash
+    var cashFlow = getCashFlowData();
+
+    // Inventory
+    var inventory = _capGetInventory();
+
+    // Receivable
+    var receivables = _capGetReceivables();
+    var receivableTotal = _capGetTotalReceivable();
+
+    // Payable
+    var payables = _capGetPayables();
+    var payableTotal = _capGetTotalPayable();
+
+    // Bank
+    var bankBalance = _capGetBankBalance();
+
+    // Loan
+    var loanBalance = _capGetLoanBalance();
+
+    // Profit
+    var netProfit = _capGetNetProfit();
+
+    // Other payable
+    var otherPayable = 0;
+
+    // Assets
+    var totalAssets =
+      cashFlow.closingCash +
+      bankBalance +
+      inventory.total +
+      receivableTotal;
+
+    // Liabilities
+    var totalLiabilities =
+      payableTotal +
+      loanBalance +
+      otherPayable;
+
+    // Accounting capital
+    var currentCapital =
+      totalAssets -
+      totalLiabilities;
+
+    // Capital growth chart
+    var capitalGrowth =
+      _capGetCapitalGrowthChart();
+
+    // Monthly profit chart
+    var monthlyProfit =
+      _capGetMonthlyProfitChart();
+
+    return {
+
+      overview: overview,
+
+      summary: {
+        netProfit: netProfit
+      },
+
+      assets: {
+
+        // IMPORTANT:
+        // This is actual cash calculation,
+        // not simply Capital Balance.
+        cash: cashFlow.closingCash,
+
+        bank: bankBalance,
+
+        inventoryValue: inventory.total,
+
+        receivable: receivableTotal,
+
+        totalAssets: totalAssets
+      },
+
+      liabilities: {
+
+        payable: payableTotal,
+
+        loan: loanBalance,
+
+        other: otherPayable,
+
+        totalLiabilities: totalLiabilities
+      },
+
+      currentCapital: currentCapital,
+
+      cashFlow: cashFlow,
+
+      receivablePayable: {
+
+        receivables: receivables,
+
+        payables: payables
+      },
+
+      inventory: inventory,
+
+      capitalGrowth: capitalGrowth,
+
+      monthlyProfit: monthlyProfit
+    };
+
+  } catch (err) {
+
+    throw new Error(
+      'Capital Dashboard Error: ' + err.message
+    );
+  }
+}
+
+
+// ============================================================
+// CAPITAL GROWTH CHART
+// ============================================================
+
+function _capGetCapitalGrowthChart() {
+
+  var sheet = ensureCapitalSheet();
+
+  var result = {
+    labels: [],
+    data: []
+  };
+
+  if (sheet.getLastRow() < 2) {
+    return result;
+  }
+
+  var data = sheet
+    .getRange(2, 1, sheet.getLastRow() - 1, 5)
+    .getValues();
+
+  var rows = [];
+
+  for (var i = 0; i < data.length; i++) {
+
+    rows.push({
+      date: _capDate(data[i][0]),
+      amount: _capNumber(data[i][1])
+    });
+  }
+
+  rows.sort(function(a, b) {
+
+    var da = a.date ? a.date.getTime() : 0;
+    var db = b.date ? b.date.getTime() : 0;
+
+    return da - db;
+  });
+
+  var running = 0;
+
+  rows.forEach(function(row) {
+
+    running += row.amount;
+
+    result.labels.push(
+      row.date
+        ? Utilities.formatDate(
+            row.date,
+            Session.getScriptTimeZone() || 'Asia/Dhaka',
+            'dd/MM'
+          )
+        : ''
+    );
+
+    result.data.push(running);
+  });
+
+  return result;
+}
+
+
+// ============================================================
+// MONTHLY PROFIT CHART
+// ============================================================
+
+function _capGetMonthlyProfitChart() {
+
+  var result = {
+    labels: [],
+    profit: []
+  };
+
+  var now = new Date();
+
+  for (var i = 11; i >= 0; i--) {
+
+    var d = new Date(
+      now.getFullYear(),
+      now.getMonth() - i,
+      1
+    );
+
+    var label = Utilities.formatDate(
+      d,
+      Session.getScriptTimeZone() || 'Asia/Dhaka',
+      'MMM yyyy'
+    );
+
+    result.labels.push(label);
+
+    var sales =
+      _capGetMonthlySales(d);
+
+    var expenses =
+      _capGetMonthlyExpenses(d);
+
+    var cogs =
+      _capGetMonthlyCOGS(d);
+
+    result.profit.push(
+      sales - cogs - expenses
+    );
+  }
+
+  return result;
+}
+
+
+// ============================================================
+// MONTHLY SALES
+// ============================================================
+
+function _capGetMonthlySales(monthDate) {
+
+  var sheet = _capGetSheet(SALES_SHEET_NAME);
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return 0;
+  }
+
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+
+  var dateCol = _capFindHeader(headers, [
+    'Date',
+    'Sale Date'
+  ]);
+
+  var totalCol = _capFindHeader(headers, [
+    'Grand Total',
+    'Total',
+    'Amount'
+  ]);
+
+  if (dateCol < 0 || totalCol < 0) {
+    return 0;
+  }
+
+  var result = 0;
+
+  for (var i = 1; i < data.length; i++) {
+
+    var d = _capDate(data[i][dateCol]);
+
+    if (!d) continue;
+
+    if (
+      d.getFullYear() === monthDate.getFullYear() &&
+      d.getMonth() === monthDate.getMonth()
+    ) {
+
+      result += _capNumber(data[i][totalCol]);
+    }
+  }
+
+  return result;
+}
+
+
+// ============================================================
+// MONTHLY EXPENSE
+// ============================================================
+
+function _capGetMonthlyExpenses(monthDate) {
+
+  var sheet = _capGetSheet(EXPENSE_SHEET_NAME);
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return 0;
+  }
+
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+
+  var dateCol = _capFindHeader(headers, [
+    'Date',
+    'Expense Date'
+  ]);
+
+  var amountCol = _capFindHeader(headers, [
+    'Amount',
+    'Expense Amount'
+  ]);
+
+  if (dateCol < 0 || amountCol < 0) {
+    return 0;
+  }
+
+  var result = 0;
+
+  for (var i = 1; i < data.length; i++) {
+
+    var d = _capDate(data[i][dateCol]);
+
+    if (!d) continue;
+
+    if (
+      d.getFullYear() === monthDate.getFullYear() &&
+      d.getMonth() === monthDate.getMonth()
+    ) {
+
+      result += _capNumber(data[i][amountCol]);
+    }
+  }
+
+  return result;
+}
+
+
+// ============================================================
+// MONTHLY COGS
+// ============================================================
+
+function _capGetMonthlyCOGS(monthDate) {
+
+  var sheet = _capGetSheet(SALES_DETAILS_SHEET_NAME);
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return 0;
+  }
+
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+
+  var dateCol = _capFindHeader(headers, [
+    'Date',
+    'Sale Date'
+  ]);
+
+  var qtyCol = _capFindHeader(headers, [
+    'Qty',
+    'Quantity',
+    'QTY'
+  ]);
+
+  var costCol = _capFindHeader(headers, [
+    'Cost',
+    'Cost Price',
+    'Purchase Price'
+  ]);
+
+  if (dateCol < 0 || qtyCol < 0 || costCol < 0) {
+    return 0;
+  }
+
+  var result = 0;
+
+  for (var i = 1; i < data.length; i++) {
+
+    var d = _capDate(data[i][dateCol]);
+
+    if (!d) continue;
+
+    if (
+      d.getFullYear() === monthDate.getFullYear() &&
+      d.getMonth() === monthDate.getMonth()
+    ) {
+
+      var qty = _capNumber(data[i][qtyCol]);
+      var cost = _capNumber(data[i][costCol]);
+
+      result += qty * cost;
+    }
+  }
+
+  return result;
+}
+
+
+// ============================================================
+// EXPORT CSV
+//
+// HTML:
+// exportTransactionsCSV()
+// ============================================================
+
+function exportTransactionsCSV() {
+
+  var entries = getCapitalEntries();
+
+  var csv = [];
+
+  csv.push([
+    'Date',
+    'Amount',
+    'Running Balance',
+    'Description',
+    'Payment Method'
+  ].join(','));
+
+  entries.forEach(function(e) {
+
+    csv.push([
+      '"' + _capDateString(e.date) + '"',
+      e.amount,
+      e.runningBalance,
+      '"' + String(e.description || '')
+        .replace(/"/g, '""') + '"',
+      '"' + String(e.paymentMethod || '')
+        .replace(/"/g, '""') + '"'
+    ].join(','));
+  });
+
+  return csv.join('\n');
+}
+
+
+// ============================================================
+// OPTIONAL: REPAIR OLD CAPITAL SHEET
+//
+// If your existing Capital sheet has blank/wrong Running
+// Balance values, run this function ONCE manually.
+// ============================================================
+
+function repairCapitalRunningBalance() {
+
+  recalculateCapitalRunningBalance();
+
+  return 'Capital running balance repaired successfully.';
+}
+
+
+// ============================================================
+// TEST FUNCTION
+//
+// Run this manually from Apps Script if you want to check
+// the cash calculation.
+// ============================================================
+
+function testCapitalDashboard() {
+
+  var data = getFullDashboardData();
+
+  Logger.log(
+    JSON.stringify(data, null, 2)
+  );
+
+  return data;
+}

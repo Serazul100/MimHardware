@@ -1,0 +1,1337 @@
+// ============================================================
+// gsexpenses.gs – Complete Expense Management Backend
+// Version 2.0
+//
+// Expenses Sheet:
+// ID | Date | Category | Amount | Description | Payment Method
+//
+// Features:
+// - Create / Read / Update / Delete
+// - Date filter
+// - Category filter
+// - Payment Method filter
+// - Search
+// - Summary
+// - Safe Expense ID generation
+// - Private helper names to reduce global conflicts
+// ============================================================
+
+
+// ============================================================
+// PRIVATE HELPERS
+// ============================================================
+
+function _expGetSS() {
+  return SpreadsheetApp.getActiveSpreadsheet();
+}
+
+
+function _expNormalize(value) {
+  return String(value == null ? "" : value)
+    .trim()
+    .toLowerCase();
+}
+
+
+function _expGetColumnIndex(sheet, columnName) {
+  if (!sheet) return -1;
+
+  var lastColumn = sheet.getLastColumn();
+
+  if (lastColumn < 1) return -1;
+
+  var headers = sheet
+    .getRange(1, 1, 1, lastColumn)
+    .getValues()[0];
+
+  var target = _expNormalize(columnName);
+
+  for (var i = 0; i < headers.length; i++) {
+    if (_expNormalize(headers[i]) === target) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+
+function _expFormatDate(date) {
+  if (!date) return "";
+
+  var d;
+
+  if (Object.prototype.toString.call(date) === "[object Date]") {
+    d = new Date(date.getTime());
+  } else {
+    d = new Date(date);
+  }
+
+  if (isNaN(d.getTime())) {
+    return String(date);
+  }
+
+  return Utilities.formatDate(
+    d,
+    Session.getScriptTimeZone(),
+    "yyyy-MM-dd"
+  );
+}
+
+
+function _expDateOnly(value) {
+  if (!value) return null;
+
+  var d;
+
+  if (Object.prototype.toString.call(value) === "[object Date]") {
+    d = new Date(value.getTime());
+  } else {
+    d = new Date(value);
+  }
+
+  if (isNaN(d.getTime())) {
+    return null;
+  }
+
+  d.setHours(0, 0, 0, 0);
+
+  return d;
+}
+
+
+function _expParseAmount(value) {
+  if (typeof value === "number") {
+    return isFinite(value) ? value : 0;
+  }
+
+  var cleaned = String(
+    value == null ? "" : value
+  )
+    .replace(/৳/g, "")
+    .replace(/,/g, "")
+    .trim();
+
+  var number = parseFloat(cleaned);
+
+  return isFinite(number) ? number : 0;
+}
+
+
+function _expIsDateInRange(value, startDate, endDate) {
+  var date = _expDateOnly(value);
+
+  if (!date) {
+    return false;
+  }
+
+  if (startDate) {
+    var start = _expDateOnly(startDate);
+
+    if (start && date < start) {
+      return false;
+    }
+  }
+
+  if (endDate) {
+    var end = _expDateOnly(endDate);
+
+    if (end) {
+      end.setHours(23, 59, 59, 999);
+
+      if (date > end) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+
+function _expFindRowById(sheet, expenseId) {
+  var idIndex = _expGetColumnIndex(sheet, "ID");
+
+  if (idIndex === -1) {
+    return -1;
+  }
+
+  var lastRow = sheet.getLastRow();
+
+  if (lastRow < 2) {
+    return -1;
+  }
+
+  var values = sheet
+    .getRange(
+      2,
+      idIndex + 1,
+      lastRow - 1,
+      1
+    )
+    .getValues();
+
+  var target = String(expenseId).trim();
+
+  for (var i = 0; i < values.length; i++) {
+    if (
+      String(values[i][0]).trim() === target
+    ) {
+      return i + 2;
+    }
+  }
+
+  return -1;
+}
+
+
+// ============================================================
+// ENSURE EXPENSES SHEET
+// ============================================================
+
+function ensureExpensesSheet() {
+
+  var ss = _expGetSS();
+
+  var sheet = ss.getSheetByName("Expenses");
+
+  if (!sheet) {
+
+    sheet = ss.insertSheet("Expenses");
+
+    sheet.appendRow([
+      "ID",
+      "Date",
+      "Category",
+      "Amount",
+      "Description",
+      "Payment Method"
+    ]);
+
+    sheet
+      .getRange(1, 1, 1, 6)
+      .setBackground("#1a3a2a")
+      .setFontColor("#ffffff")
+      .setFontWeight("bold");
+
+    sheet.setFrozenRows(1);
+
+    sheet
+      .getRange("D:D")
+      .setNumberFormat("#,##0.00");
+
+  }
+
+  return sheet;
+}
+
+
+// ============================================================
+// GENERATE EXPENSE ID
+// ============================================================
+
+function generateExpenseId() {
+
+  var sheet = ensureExpensesSheet();
+
+  var idIndex = _expGetColumnIndex(
+    sheet,
+    "ID"
+  );
+
+  if (idIndex === -1) {
+    return "EXP-001";
+  }
+
+  var lastRow = sheet.getLastRow();
+
+  if (lastRow < 2) {
+    return "EXP-001";
+  }
+
+  var values = sheet
+    .getRange(
+      2,
+      idIndex + 1,
+      lastRow - 1,
+      1
+    )
+    .getValues();
+
+  var maxNumber = 0;
+
+  values.forEach(function(row) {
+
+    var id = String(
+      row[0] == null ? "" : row[0]
+    ).trim();
+
+    var match = id.match(
+      /^EXP-(\d+)$/i
+    );
+
+    if (match) {
+
+      var number = parseInt(
+        match[1],
+        10
+      );
+
+      if (number > maxNumber) {
+        maxNumber = number;
+      }
+
+    }
+
+  });
+
+  return (
+    "EXP-" +
+    String(maxNumber + 1).padStart(3, "0")
+  );
+}
+
+
+// ============================================================
+// EXPENSE CATEGORIES
+// ============================================================
+
+function getExpenseCategories() {
+
+  return [
+    "Rent",
+    "Utilities",
+    "Salaries",
+    "Transport",
+    "Office Supplies",
+    "Marketing",
+    "Maintenance",
+    "Taxes",
+    "Share Profit",
+    "Food",
+    "Travel",
+    "Entertainment",
+    "Other"
+  ];
+
+}
+
+
+// ============================================================
+// GET EXPENSES
+//
+// Parameters:
+// startDate
+// endDate
+// category
+// paymentMethod
+// search
+// ============================================================
+
+function getExpenses(
+  startDate,
+  endDate,
+  category,
+  paymentMethod,
+  search
+) {
+
+  try {
+
+    var sheet = ensureExpensesSheet();
+
+    var data = sheet
+      .getDataRange()
+      .getValues();
+
+    if (data.length < 2) {
+      return [];
+    }
+
+    var idIndex =
+      _expGetColumnIndex(sheet, "ID");
+
+    var dateIndex =
+      _expGetColumnIndex(sheet, "Date");
+
+    var categoryIndex =
+      _expGetColumnIndex(sheet, "Category");
+
+    var amountIndex =
+      _expGetColumnIndex(sheet, "Amount");
+
+    var descriptionIndex =
+      _expGetColumnIndex(sheet, "Description");
+
+    var paymentIndex =
+      _expGetColumnIndex(
+        sheet,
+        "Payment Method"
+      );
+
+
+    if (
+      idIndex === -1 ||
+      dateIndex === -1 ||
+      amountIndex === -1
+    ) {
+
+      return {
+        error:
+          "Expenses sheet headers are incomplete. Required headers: ID, Date, Amount."
+      };
+
+    }
+
+
+    var categoryFilter =
+      String(category || "All").trim();
+
+    var paymentFilter =
+      String(paymentMethod || "All").trim();
+
+    var searchFilter =
+      String(search || "")
+        .trim()
+        .toLowerCase();
+
+
+    var expenses = [];
+
+
+    for (
+      var i = 1;
+      i < data.length;
+      i++
+    ) {
+
+      var row = data[i];
+
+      if (
+        !row[idIndex] &&
+        !row[dateIndex] &&
+        !row[amountIndex]
+      ) {
+        continue;
+      }
+
+
+      // DATE FILTER
+      if (
+        !_expIsDateInRange(
+          row[dateIndex],
+          startDate,
+          endDate
+        )
+      ) {
+        continue;
+      }
+
+
+      var id =
+        String(
+          row[idIndex] || ""
+        ).trim();
+
+      var rowCategory =
+        categoryIndex !== -1
+          ? String(
+              row[categoryIndex] || ""
+            ).trim()
+          : "";
+
+      var rowPayment =
+        paymentIndex !== -1
+          ? String(
+              row[paymentIndex] || ""
+            ).trim()
+          : "";
+
+      var rowDescription =
+        descriptionIndex !== -1
+          ? String(
+              row[descriptionIndex] || ""
+            )
+          : "";
+
+
+      // CATEGORY FILTER
+      if (
+        categoryFilter &&
+        categoryFilter !== "All" &&
+        rowCategory !== categoryFilter
+      ) {
+        continue;
+      }
+
+
+      // PAYMENT FILTER
+      if (
+        paymentFilter &&
+        paymentFilter !== "All" &&
+        rowPayment !== paymentFilter
+      ) {
+        continue;
+      }
+
+
+      // SEARCH
+      if (searchFilter) {
+
+        var searchText = [
+          id,
+          rowCategory,
+          rowDescription,
+          rowPayment
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        if (
+          searchText.indexOf(
+            searchFilter
+          ) === -1
+        ) {
+          continue;
+        }
+
+      }
+
+
+      expenses.push({
+
+        id: id,
+
+        date:
+          _expFormatDate(
+            row[dateIndex]
+          ),
+
+        category:
+          rowCategory,
+
+        amount:
+          _expParseAmount(
+            row[amountIndex]
+          ),
+
+        description:
+          rowDescription,
+
+        paymentMethod:
+          rowPayment
+
+      });
+
+    }
+
+
+    // NEWEST FIRST
+    expenses.sort(function(a, b) {
+
+      if (a.date === b.date) {
+
+        return String(b.id)
+          .localeCompare(
+            String(a.id),
+            undefined,
+            { numeric: true }
+          );
+
+      }
+
+      return String(b.date)
+        .localeCompare(
+          String(a.date)
+        );
+
+    });
+
+
+    return expenses;
+
+
+  } catch (error) {
+
+    return {
+      error:
+        "getExpenses: " +
+        error.toString()
+    };
+
+  }
+
+}
+
+
+// ============================================================
+// ADD EXPENSE
+// ============================================================
+
+function addExpense(expenseData) {
+
+  try {
+
+    if (!expenseData) {
+
+      return {
+        success: false,
+        error:
+          "Expense data is required."
+      };
+
+    }
+
+
+    var date =
+      String(
+        expenseData.date || ""
+      ).trim();
+
+    var category =
+      String(
+        expenseData.category || "Other"
+      ).trim();
+
+    var amount =
+      _expParseAmount(
+        expenseData.amount
+      );
+
+    var description =
+      String(
+        expenseData.description || ""
+      ).trim();
+
+    var paymentMethod =
+      String(
+        expenseData.paymentMethod || ""
+      ).trim();
+
+
+    if (!date) {
+
+      return {
+        success: false,
+        error:
+          "Expense date is required."
+      };
+
+    }
+
+
+    if (amount <= 0) {
+
+      return {
+        success: false,
+        error:
+          "Expense amount must be greater than 0."
+      };
+
+    }
+
+
+    var sheet =
+      ensureExpensesSheet();
+
+    var id =
+      generateExpenseId();
+
+
+    sheet.appendRow([
+
+      id,
+      date,
+      category,
+      amount,
+      description,
+      paymentMethod
+
+    ]);
+
+
+    return {
+
+      success: true,
+
+      id: id,
+
+      message:
+        "Expense added successfully!"
+
+    };
+
+
+  } catch (error) {
+
+    return {
+
+      success: false,
+
+      error:
+        "addExpense: " +
+        error.toString()
+
+    };
+
+  }
+
+}
+
+
+// ============================================================
+// UPDATE EXPENSE
+// ============================================================
+
+function updateExpense(
+  expenseId,
+  expenseData
+) {
+
+  try {
+
+    if (
+      !expenseId ||
+      !expenseData
+    ) {
+
+      return {
+
+        success: false,
+
+        error:
+          "Expense ID and expense data are required."
+
+      };
+
+    }
+
+
+    var sheet =
+      ensureExpensesSheet();
+
+
+    var rowNumber =
+      _expFindRowById(
+        sheet,
+        expenseId
+      );
+
+
+    if (rowNumber === -1) {
+
+      return {
+
+        success: false,
+
+        error:
+          "Expense not found: " +
+          expenseId
+
+      };
+
+    }
+
+
+    var dateIndex =
+      _expGetColumnIndex(
+        sheet,
+        "Date"
+      );
+
+    var categoryIndex =
+      _expGetColumnIndex(
+        sheet,
+        "Category"
+      );
+
+    var amountIndex =
+      _expGetColumnIndex(
+        sheet,
+        "Amount"
+      );
+
+    var descriptionIndex =
+      _expGetColumnIndex(
+        sheet,
+        "Description"
+      );
+
+    var paymentIndex =
+      _expGetColumnIndex(
+        sheet,
+        "Payment Method"
+      );
+
+
+    var date =
+      String(
+        expenseData.date || ""
+      ).trim();
+
+    var category =
+      String(
+        expenseData.category || "Other"
+      ).trim();
+
+    var amount =
+      _expParseAmount(
+        expenseData.amount
+      );
+
+    var description =
+      String(
+        expenseData.description || ""
+      ).trim();
+
+    var paymentMethod =
+      String(
+        expenseData.paymentMethod || ""
+      ).trim();
+
+
+    if (!date) {
+
+      return {
+
+        success: false,
+
+        error:
+          "Expense date is required."
+
+      };
+
+    }
+
+
+    if (amount <= 0) {
+
+      return {
+
+        success: false,
+
+        error:
+          "Expense amount must be greater than 0."
+
+      };
+
+    }
+
+
+    if (dateIndex !== -1) {
+
+      sheet
+        .getRange(
+          rowNumber,
+          dateIndex + 1
+        )
+        .setValue(date);
+
+    }
+
+
+    if (categoryIndex !== -1) {
+
+      sheet
+        .getRange(
+          rowNumber,
+          categoryIndex + 1
+        )
+        .setValue(category);
+
+    }
+
+
+    if (amountIndex !== -1) {
+
+      sheet
+        .getRange(
+          rowNumber,
+          amountIndex + 1
+        )
+        .setValue(amount);
+
+    }
+
+
+    if (descriptionIndex !== -1) {
+
+      sheet
+        .getRange(
+          rowNumber,
+          descriptionIndex + 1
+        )
+        .setValue(description);
+
+    }
+
+
+    if (paymentIndex !== -1) {
+
+      sheet
+        .getRange(
+          rowNumber,
+          paymentIndex + 1
+        )
+        .setValue(paymentMethod);
+
+    }
+
+
+    return {
+
+      success: true,
+
+      message:
+        "Expense updated successfully!"
+
+    };
+
+
+  } catch (error) {
+
+    return {
+
+      success: false,
+
+      error:
+        "updateExpense: " +
+        error.toString()
+
+    };
+
+  }
+
+}
+
+
+// ============================================================
+// DELETE EXPENSE
+// ============================================================
+
+function deleteExpense(expenseId) {
+
+  try {
+
+    if (!expenseId) {
+
+      return {
+
+        success: false,
+
+        error:
+          "Expense ID is required."
+
+      };
+
+    }
+
+
+    var sheet =
+      ensureExpensesSheet();
+
+
+    var rowNumber =
+      _expFindRowById(
+        sheet,
+        expenseId
+      );
+
+
+    if (rowNumber === -1) {
+
+      return {
+
+        success: false,
+
+        error:
+          "Expense not found: " +
+          expenseId
+
+      };
+
+    }
+
+
+    sheet.deleteRow(
+      rowNumber
+    );
+
+
+    return {
+
+      success: true,
+
+      message:
+        "Expense deleted successfully!"
+
+    };
+
+
+  } catch (error) {
+
+    return {
+
+      success: false,
+
+      error:
+        "deleteExpense: " +
+        error.toString()
+
+    };
+
+  }
+
+}
+
+
+// ============================================================
+// EXPENSE SUMMARY
+//
+// total = current filters অনুযায়ী total
+// today = current filters-এর মধ্যে today's total
+// month = current filters-এর মধ্যে current month's total
+// ============================================================
+
+function getExpenseSummary(
+  startDate,
+  endDate,
+  category,
+  paymentMethod,
+  search
+) {
+
+  try {
+
+    var sheet =
+      ensureExpensesSheet();
+
+
+    var data =
+      sheet
+        .getDataRange()
+        .getValues();
+
+
+    if (data.length < 2) {
+
+      return {
+
+        total: 0,
+
+        today: 0,
+
+        month: 0,
+
+        byCategory: []
+
+      };
+
+    }
+
+
+    var dateIndex =
+      _expGetColumnIndex(
+        sheet,
+        "Date"
+      );
+
+    var categoryIndex =
+      _expGetColumnIndex(
+        sheet,
+        "Category"
+      );
+
+    var amountIndex =
+      _expGetColumnIndex(
+        sheet,
+        "Amount"
+      );
+
+    var descriptionIndex =
+      _expGetColumnIndex(
+        sheet,
+        "Description"
+      );
+
+    var idIndex =
+      _expGetColumnIndex(
+        sheet,
+        "ID"
+      );
+
+    var paymentIndex =
+      _expGetColumnIndex(
+        sheet,
+        "Payment Method"
+      );
+
+
+    if (
+      dateIndex === -1 ||
+      amountIndex === -1
+    ) {
+
+      return {
+
+        error:
+          "Expenses sheet must contain Date and Amount headers."
+
+      };
+
+    }
+
+
+    var today =
+      _expDateOnly(
+        new Date()
+      );
+
+
+    var monthStart =
+      new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        1
+      );
+
+
+    var categoryFilter =
+      String(
+        category || "All"
+      ).trim();
+
+
+    var paymentFilter =
+      String(
+        paymentMethod || "All"
+      ).trim();
+
+
+    var searchFilter =
+      String(
+        search || ""
+      )
+        .trim()
+        .toLowerCase();
+
+
+    var total = 0;
+
+    var todayTotal = 0;
+
+    var monthTotal = 0;
+
+    var categoryMap = {};
+
+
+    for (
+      var i = 1;
+      i < data.length;
+      i++
+    ) {
+
+      var row = data[i];
+
+
+      if (!row[dateIndex]) {
+        continue;
+      }
+
+
+      if (
+        !_expIsDateInRange(
+          row[dateIndex],
+          startDate,
+          endDate
+        )
+      ) {
+        continue;
+      }
+
+
+      var rowCategory =
+        categoryIndex !== -1
+          ? String(
+              row[categoryIndex] || ""
+            ).trim()
+          : "";
+
+
+      var rowPayment =
+        paymentIndex !== -1
+          ? String(
+              row[paymentIndex] || ""
+            ).trim()
+          : "";
+
+
+      var rowDescription =
+        descriptionIndex !== -1
+          ? String(
+              row[descriptionIndex] || ""
+            )
+          : "";
+
+
+      var rowId =
+        idIndex !== -1
+          ? String(
+              row[idIndex] || ""
+            ).trim()
+          : "";
+
+
+      if (
+        categoryFilter &&
+        categoryFilter !== "All" &&
+        rowCategory !== categoryFilter
+      ) {
+        continue;
+      }
+
+
+      if (
+        paymentFilter &&
+        paymentFilter !== "All" &&
+        rowPayment !== paymentFilter
+      ) {
+        continue;
+      }
+
+
+      if (searchFilter) {
+
+        var searchText = [
+
+          rowId,
+          rowCategory,
+          rowDescription,
+          rowPayment
+
+        ]
+          .join(" ")
+          .toLowerCase();
+
+
+        if (
+          searchText.indexOf(
+            searchFilter
+          ) === -1
+        ) {
+          continue;
+        }
+
+      }
+
+
+      var amount =
+        _expParseAmount(
+          row[amountIndex]
+        );
+
+
+      var expenseDate =
+        _expDateOnly(
+          row[dateIndex]
+        );
+
+
+      total += amount;
+
+
+      if (
+        expenseDate &&
+        expenseDate.getTime() ===
+          today.getTime()
+      ) {
+
+        todayTotal += amount;
+
+      }
+
+
+      if (
+        expenseDate &&
+        expenseDate >= monthStart
+      ) {
+
+        monthTotal += amount;
+
+      }
+
+
+      var categoryName =
+        rowCategory ||
+        "Uncategorized";
+
+
+      if (
+        !categoryMap[categoryName]
+      ) {
+
+        categoryMap[categoryName] =
+          0;
+
+      }
+
+
+      categoryMap[categoryName] +=
+        amount;
+
+    }
+
+
+    var byCategory =
+      Object.keys(categoryMap)
+
+        .map(function(key) {
+
+          return {
+
+            category: key,
+
+            amount:
+              categoryMap[key]
+
+          };
+
+        })
+
+        .sort(function(a, b) {
+
+          return (
+            b.amount -
+            a.amount
+          );
+
+        });
+
+
+    return {
+
+      total: total,
+
+      today: todayTotal,
+
+      month: monthTotal,
+
+      byCategory:
+        byCategory
+
+    };
+
+
+  } catch (error) {
+
+    return {
+
+      error:
+        "getExpenseSummary: " +
+        error.toString()
+
+    };
+
+  }
+
+}

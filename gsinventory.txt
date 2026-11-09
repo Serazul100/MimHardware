@@ -1,0 +1,664 @@
+// ============================================================================
+// gsinventory.gs
+// MIM ERP — Inventory Backend (Inventory Page Only)
+//
+// Backs the inventory.html page:
+//   • getInventoryDashboardData()   → KPI cards
+//   • getInventoryStats()           → In/Low/Out breakdown
+//   • getAllInventoryItems()        → main table + Low Stock print feed
+//   • searchInventory(text)         → live search
+//   • getProductsWithHSNCode()      → dropdown
+//   • getProductByName(name)        → auto-fill
+//   • generateNewItemID()           → HSN generator
+//   • addInventoryItem(item)        → create
+//   • updateInventoryItem(item)     → edit
+//   • deleteInventoryItem(hsn)      → delete
+//
+// Sheet layout assumed:
+//   Products        A=HSN, B=Name, C=Cost, D=Selling, E=Stock, F=Barcode
+//   InventoryItems  A=Name, B=QTY Purchased, C=QTY Sold, D=Remaining, E=Reorder Level, F=Reorder Required
+//                   (optionally) I=Name, J=Purchased, K=Sold, L=Remaining, M=Reorder, N=Reorder Required
+//
+// All internal helpers are prefixed with _inv to avoid collisions with gsreports.gs.
+// ============================================================================
+
+
+// ============================================================================
+// SHEET NAMES
+// ============================================================================
+
+var INV_SHEETS = {
+  PRODUCTS:  'Products',
+  INVENTORY: 'InventoryItems'
+};
+
+
+// ============================================================================
+// SAFE INTERNAL HELPERS
+// ============================================================================
+
+function _invGetSS() {
+  return SpreadsheetApp.getActiveSpreadsheet();
+}
+
+function _invNumber(value) {
+  if (value === null || value === undefined || value === '') return 0;
+  if (typeof value === 'number') return isFinite(value) ? value : 0;
+  if (value instanceof Date) return 0;
+
+  var text = String(value).trim();
+  if (!text) return 0;
+
+  var negativeByParens = /^\(.*\)$/.test(text);
+
+  var cleaned = text
+    .replace(/৳/g, '')
+    .replace(/,/g, '')
+    .replace(/[()]/g, '')
+    .replace(/\s/g, '')
+    .trim();
+
+  if (!cleaned) return 0;
+  var parsed = parseFloat(cleaned);
+  if (!isFinite(parsed)) return 0;
+  if (negativeByParens) parsed = -Math.abs(parsed);
+  return parsed;
+}
+
+function _invText(v) {
+  return String(v === null || v === undefined ? '' : v).trim();
+}
+
+/**
+ * Normalize product name for matching across sheets.
+ * Unifies curly quotes, NBSP, whitespace, and case.
+ */
+function _invNormalize(name) {
+  return String(name || '')
+    .replace(/\u00A0/g, ' ')
+    .replace(/[\u2018\u2019\u02BC\u2032]/g, "'")
+    .replace(/[\u201C\u201D\u2033]/g, '"')
+    .replace(/[\uFF08]/g, '(')
+    .replace(/[\uFF09]/g, ')')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+
+// ============================================================================
+// PRODUCTS  —  getProductsWithHSNCode / getProductByName / generateNewItemID
+// ============================================================================
+
+function getProductsWithHSNCode() {
+  try {
+    var sheet = _invGetSS().getSheetByName(INV_SHEETS.PRODUCTS);
+    if (!sheet) { Logger.log('Products sheet not found'); return []; }
+
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return [];
+
+    var data = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
+    var products = [];
+
+    for (var i = 0; i < data.length; i++) {
+      var hsn  = _invText(data[i][0]);
+      var name = _invText(data[i][1]);
+      var cost = _invNumber(data[i][2]);
+      if (name) products.push({ name: name, hsnCode: hsn, cost: cost });
+    }
+    return products;
+  } catch (e) {
+    Logger.log('getProductsWithHSNCode error: ' + e.message);
+    return [];
+  }
+}
+
+function getProductByName(productName) {
+  try {
+    var sheet = _invGetSS().getSheetByName(INV_SHEETS.PRODUCTS);
+    if (!sheet) return null;
+
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return null;
+
+    var data = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
+    var target = _invNormalize(productName);
+
+    for (var i = 0; i < data.length; i++) {
+      var name = _invText(data[i][1]);
+      if (_invNormalize(name) === target) {
+        return {
+          hsnCode:      _invText(data[i][0]),
+          productName:  name,
+          cost:         _invNumber(data[i][2]),
+          sellingPrice: _invNumber(data[i][3]),
+          stock:        _invNumber(data[i][4]),
+          barcode:      _invText(data[i][5])
+        };
+      }
+    }
+    return null;
+  } catch (e) {
+    Logger.log('getProductByName error: ' + e.message);
+    return null;
+  }
+}
+
+function generateNewItemID() {
+  try {
+    var sheet = _invGetSS().getSheetByName(INV_SHEETS.PRODUCTS);
+    if (!sheet) return 'N1001';
+
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return 'N1001';
+
+    var hsnCodes = sheet.getRange('A2:A' + lastRow).getValues();
+    var maxNum = 1000;
+
+    for (var i = 0; i < hsnCodes.length; i++) {
+      var code = _invText(hsnCodes[i][0]);
+      if (code.charAt(0).toUpperCase() === 'N') {
+        var num = parseInt(code.substring(1), 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
+      }
+    }
+    return 'N' + (maxNum + 1);
+  } catch (e) {
+    Logger.log('generateNewItemID error: ' + e.message);
+    return 'N1001';
+  }
+}
+
+
+// ============================================================================
+// ADD / UPDATE / DELETE
+// ============================================================================
+
+function addInventoryItem(item) {
+  try {
+    item = item || {};
+    var ss = _invGetSS();
+    var prodSheet = ss.getSheetByName(INV_SHEETS.PRODUCTS);
+    var invSheet  = ss.getSheetByName(INV_SHEETS.INVENTORY);
+    if (!prodSheet) return 'Error: Products sheet not found';
+
+    var hsn  = _invText(item.hsnCode);
+    var name = _invText(item.productName);
+    if (!hsn)  return 'Error: HSN Code is required';
+    if (!name) return 'Error: Product Name is required';
+
+    // Duplicate HSN check
+    var lastRow = prodSheet.getLastRow();
+    if (lastRow >= 2) {
+      var existing = prodSheet.getRange('A2:A' + lastRow).getValues();
+      for (var i = 0; i < existing.length; i++) {
+        if (_invText(existing[i][0]) === hsn) {
+          return 'Error: HSN Code ' + hsn + ' already exists';
+        }
+      }
+    }
+
+    var cost    = _invNumber(item.cost);
+    var selling = _invNumber(item.sellingPrice);
+    if (!selling) selling = cost * 1.5;
+
+    var stock   = _invNumber(item.initialStock);
+    var barcode = _invText(item.barcode) || hsn;
+    var reorder = _invNumber(item.reorderLevel);
+    if (reorder <= 0) reorder = 10;
+
+    // Products: HSN, Name, Cost, Selling, Stock, Barcode
+    prodSheet.appendRow([hsn, name, cost, selling, stock, barcode]);
+
+    // InventoryItems: Name, Purchased, Sold, Remaining, Reorder Level, Reorder Required
+    if (invSheet) {
+      invSheet.appendRow([
+        name,
+        stock,   // QTY Purchased
+        0,       // QTY Sold
+        stock,   // Remaining QTY
+        reorder,
+        stock < reorder ? 'YES' : 'NO'
+      ]);
+    }
+
+    return '✅ Product Added Successfully! HSN: ' + hsn;
+  } catch (e) {
+    Logger.log('addInventoryItem error: ' + e.message);
+    return 'Error: ' + e.message;
+  }
+}
+
+function updateInventoryItem(item) {
+  try {
+    item = item || {};
+    var ss = _invGetSS();
+    var prodSheet = ss.getSheetByName(INV_SHEETS.PRODUCTS);
+    var invSheet  = ss.getSheetByName(INV_SHEETS.INVENTORY);
+    if (!prodSheet) return 'Error: Products sheet not found';
+
+    var lastRow = prodSheet.getLastRow();
+    if (lastRow < 2) return 'No products found';
+
+    var hsn     = _invText(item.hsnCode);
+    var name    = _invText(item.productName);
+    var cost    = _invNumber(item.cost);
+    var selling = _invNumber(item.sellingPrice);
+    var stock   = _invNumber(item.initialStock);
+    var barcode = _invText(item.barcode) || hsn;
+    var reorder = _invNumber(item.reorderLevel);
+    if (reorder <= 0) reorder = 10;
+
+    // ---- Update Products ----
+    var hsnCodes = prodSheet.getRange('A2:A' + lastRow).getValues();
+    for (var i = 0; i < hsnCodes.length; i++) {
+      if (_invText(hsnCodes[i][0]) === hsn) {
+        var row = i + 2;
+        prodSheet.getRange(row, 2).setValue(name);
+        prodSheet.getRange(row, 3).setValue(cost);
+        prodSheet.getRange(row, 4).setValue(selling);
+        prodSheet.getRange(row, 5).setValue(stock);
+        prodSheet.getRange(row, 6).setValue(barcode);
+        break;
+      }
+    }
+
+    // ---- Sync InventoryItems (both A-F and I-N column groups) ----
+    if (invSheet) {
+      var iLast = invSheet.getLastRow();
+      var iLastCol = invSheet.getLastColumn();
+      if (iLast >= 2 && iLastCol >= 1) {
+        var invData = invSheet.getRange(2, 1, iLast - 1, iLastCol).getValues();
+        var targetKey = _invNormalize(name);
+
+        for (var j = 0; j < invData.length; j++) {
+          var r = invData[j];
+
+          // Group A-F
+          if (_invNormalize(r[0]) === targetKey) {
+            invSheet.getRange(j + 2, 4).setValue(stock);
+            invSheet.getRange(j + 2, 5).setValue(reorder);
+            invSheet.getRange(j + 2, 6).setValue(stock < reorder ? 'YES' : 'NO');
+          }
+
+          // Group I-N
+          if (iLastCol >= 9 && _invNormalize(r[8]) === targetKey) {
+            invSheet.getRange(j + 2, 12).setValue(stock);   // Remaining
+            invSheet.getRange(j + 2, 13).setValue(reorder); // Reorder Level
+            invSheet.getRange(j + 2, 14).setValue(stock < reorder ? 'YES' : 'NO');
+          }
+        }
+      }
+    }
+
+    return '✅ Product Updated Successfully!';
+  } catch (e) {
+    Logger.log('updateInventoryItem error: ' + e.message);
+    return 'Error: ' + e.message;
+  }
+}
+
+function deleteInventoryItem(hsnCode) {
+  try {
+    var ss = _invGetSS();
+    var prodSheet = ss.getSheetByName(INV_SHEETS.PRODUCTS);
+    var invSheet  = ss.getSheetByName(INV_SHEETS.INVENTORY);
+    var hsn = _invText(hsnCode);
+    var deleted = false;
+    var productName = '';
+
+    // ---- Delete from Products ----
+    if (prodSheet) {
+      var lastRow = prodSheet.getLastRow();
+      if (lastRow >= 2) {
+        var codes = prodSheet.getRange('A2:A' + lastRow).getValues();
+        for (var i = codes.length - 1; i >= 0; i--) {
+          if (_invText(codes[i][0]) === hsn) {
+            productName = _invText(prodSheet.getRange(i + 2, 2).getValue());
+            prodSheet.deleteRow(i + 2);
+            deleted = true;
+            break;
+          }
+        }
+      }
+    }
+
+    // ---- Delete from InventoryItems (both column groups) ----
+    if (invSheet && productName) {
+      var iLast = invSheet.getLastRow();
+      var iLastCol = invSheet.getLastColumn();
+      if (iLast >= 2 && iLastCol >= 1) {
+        var invData = invSheet.getRange(2, 1, iLast - 1, iLastCol).getValues();
+        var targetKey = _invNormalize(productName);
+        var rowsToDelete = {};
+
+        for (var j = 0; j < invData.length; j++) {
+          var r = invData[j];
+          if (_invNormalize(r[0]) === targetKey) rowsToDelete[j + 2] = true;
+          if (iLastCol >= 9 && _invNormalize(r[8]) === targetKey) rowsToDelete[j + 2] = true;
+        }
+
+        Object.keys(rowsToDelete)
+          .map(Number)
+          .sort(function(a, b) { return b - a; })   // delete bottom-up
+          .forEach(function(r) { invSheet.deleteRow(r); });
+      }
+    }
+
+    return deleted ? '✅ Product Deleted Successfully!' : '⚠️ Item not found';
+  } catch (e) {
+    Logger.log('deleteInventoryItem error: ' + e.message);
+    return 'Error: ' + e.message;
+  }
+}
+
+
+// ============================================================================
+// GET ALL INVENTORY ITEMS  (robust merge across both column groups)
+// ============================================================================
+
+function _invAddCandidate(row, startIdx, map) {
+  if (startIdx >= row.length) return;
+
+  var rawName = _invText(row[startIdx]);
+  if (!rawName) return;
+
+  var key = _invNormalize(rawName);
+  if (!key) return;
+
+  if (!map[key]) map[key] = [];
+  map[key].push({
+    qtyPurchased: _invNumber(row[startIdx + 1]),
+    qtySold:      _invNumber(row[startIdx + 2]),
+    remainingQty: _invNumber(row[startIdx + 3]),
+    reorderLevel: _invNumber(row[startIdx + 4])
+  });
+}
+
+function getAllInventoryItems() {
+  try {
+    var ss = _invGetSS();
+    var prodSheet = ss.getSheetByName(INV_SHEETS.PRODUCTS);
+    if (!prodSheet) return [];
+
+    var lastRow = prodSheet.getLastRow();
+    if (lastRow < 2) return [];
+
+    var data = prodSheet.getRange(2, 1, lastRow - 1, 6).getValues();
+
+    /* Build candidate map from InventoryItems (both column groups) */
+    var inventoryMap = {};
+    var invSheet = ss.getSheetByName(INV_SHEETS.INVENTORY);
+
+    if (invSheet) {
+      var iLast = invSheet.getLastRow();
+      var iLastCol = invSheet.getLastColumn();
+      if (iLast >= 2 && iLastCol >= 1) {
+        var invData = invSheet.getRange(2, 1, iLast - 1, iLastCol).getValues();
+        for (var k = 0; k < invData.length; k++) {
+          var row = invData[k];
+          _invAddCandidate(row, 0, inventoryMap);            // A-F group
+          if (iLastCol >= 9) _invAddCandidate(row, 8, inventoryMap);  // I-N group
+        }
+      }
+    }
+
+    /* Merge Products with best candidate */
+    var items = [];
+    for (var i = 0; i < data.length; i++) {
+      var hsn  = _invText(data[i][0]);
+      var name = _invText(data[i][1]);
+      if (!name && !hsn) continue;
+
+      var cost    = _invNumber(data[i][2]);
+      var selling = _invNumber(data[i][3]);
+      var stock   = _invNumber(data[i][4]);
+      var barcode = _invText(data[i][5]);
+
+      var key = _invNormalize(name);
+      var candidates = inventoryMap[key] || [];
+
+      // Rule 1: pick candidate whose remaining matches stock
+      var best = null;
+      for (var c = 0; c < candidates.length; c++) {
+        if (Math.abs(candidates[c].remainingQty - stock) < 0.001) {
+          best = candidates[c];
+          break;
+        }
+      }
+      // Rule 2: first candidate with non-zero data
+      if (!best) {
+        for (var c2 = 0; c2 < candidates.length; c2++) {
+          if (candidates[c2].qtyPurchased !== 0 ||
+              candidates[c2].qtySold !== 0 ||
+              candidates[c2].remainingQty !== 0) {
+            best = candidates[c2];
+            break;
+          }
+        }
+      }
+      // Rule 3: last candidate
+      if (!best && candidates.length) best = candidates[candidates.length - 1];
+      if (!best) best = { qtyPurchased: 0, qtySold: 0, remainingQty: 0, reorderLevel: 0 };
+
+      var reorderLevel = _invNumber(best.reorderLevel);
+      if (reorderLevel <= 0) reorderLevel = 10;
+
+      items.push({
+        hsnCode:      hsn,
+        productName:  name,
+        cost:         cost,
+        sellingPrice: selling,
+        currentStock: stock,
+        stock:        stock,
+        stockValue:   stock * cost,
+        barcode:      barcode,
+        reorderLevel: reorderLevel,
+        reorder:      reorderLevel,
+
+        qtyPurchased: _invNumber(best.qtyPurchased),
+        qtySold:      _invNumber(best.qtySold),
+        remainingQty: _invNumber(best.remainingQty)
+      });
+    }
+
+    return items;
+  } catch (e) {
+    Logger.log('getAllInventoryItems error: ' + e.message);
+    return [];
+  }
+}
+
+
+// ============================================================================
+// SEARCH
+// ============================================================================
+
+function searchInventory(searchText) {
+  try {
+    var items = getAllInventoryItems();
+    if (!searchText || !String(searchText).trim()) return items;
+
+    var text = String(searchText).toLowerCase().trim();
+    return items.filter(function(item) {
+      return String(item.hsnCode).toLowerCase().indexOf(text) !== -1 ||
+             String(item.productName).toLowerCase().indexOf(text) !== -1 ||
+             String(item.barcode).toLowerCase().indexOf(text) !== -1;
+    });
+  } catch (e) {
+    return [];
+  }
+}
+
+
+// ============================================================================
+// KPI / STATS
+// ============================================================================
+
+function getInventoryDashboardData() {
+  try {
+    var items = getAllInventoryItems();
+
+    var totalStockValue = 0;
+    var lowStockCount   = 0;
+    var outOfStockCount = 0;
+
+    items.forEach(function(item) {
+      var cost  = _invNumber(item.cost);
+      var stock = _invNumber(item.currentStock);
+      var rl    = _invNumber(item.reorderLevel);
+      if (rl <= 0) rl = 10;
+
+      totalStockValue += stock * cost;
+
+      if (stock === 0)      outOfStockCount++;
+      else if (stock <= rl) lowStockCount++;
+    });
+
+    return {
+      totalProducts:   items.length,
+      totalStockValue: totalStockValue,
+      lowStockCount:   lowStockCount,
+      outOfStockCount: outOfStockCount
+    };
+  } catch (e) {
+    Logger.log('getInventoryDashboardData error: ' + e.message);
+    return { totalProducts: 0, totalStockValue: 0, lowStockCount: 0, outOfStockCount: 0 };
+  }
+}
+
+function getInventoryStats() {
+  try {
+    var items = getAllInventoryItems();
+
+    var totalValue = 0;
+    var inStock    = 0;
+    var lowStock   = 0;
+    var outOfStock = 0;
+
+    items.forEach(function(item) {
+      totalValue += item.stockValue || 0;
+
+      var s  = _invNumber(item.currentStock);
+      var rl = _invNumber(item.reorderLevel);
+      if (rl <= 0) rl = 10;
+
+      if (s === 0)      outOfStock++;
+      else if (s <= rl) lowStock++;
+      else              inStock++;
+    });
+
+    return {
+      totalItems: items.length,
+      totalValue: totalValue,
+      inStock:    inStock,
+      lowStock:   lowStock,
+      outOfStock: outOfStock
+    };
+  } catch (e) {
+    Logger.log('getInventoryStats error: ' + e.message);
+    return { totalItems: 0, totalValue: 0, inStock: 0, lowStock: 0, outOfStock: 0 };
+  }
+}
+
+function getLowStockItems() {
+  try {
+    var items = getAllInventoryItems();
+    return items.filter(function(item) {
+      var stock = _invNumber(item.currentStock);
+      var rl    = _invNumber(item.reorderLevel);
+      if (rl <= 0) rl = 10;
+      return stock <= rl;
+    });
+  } catch (e) {
+    return [];
+  }
+}
+
+
+// ============================================================================
+// DEBUG HELPERS
+// ============================================================================
+
+/**
+ * Run from the Apps Script editor to see exactly why a product
+ * doesn't merge properly. Example:
+ *   debugInventoryMerge('Stell Brush (Plastic) 1pcs');
+ *   debugInventoryMerge('18" কুমির করাত পিস');
+ */
+function debugInventoryMerge(productName) {
+  var target = _invNormalize(productName);
+  Logger.log('=== DEBUG: ' + productName + ' ===');
+  Logger.log('Normalized: [' + target + ']');
+
+  // Products side
+  var prodSheet = _invGetSS().getSheetByName(INV_SHEETS.PRODUCTS);
+  if (prodSheet) {
+    var pLast = prodSheet.getLastRow();
+    if (pLast >= 2) {
+      var pData = prodSheet.getRange(2, 1, pLast - 1, 6).getValues();
+      var found = false;
+      for (var i = 0; i < pData.length; i++) {
+        var pName = _invText(pData[i][1]);
+        if (_invNormalize(pName) === target) {
+          Logger.log('PRODUCTS row ' + (i + 2) +
+            ' | raw: [' + pName + ']' +
+            ' | HSN: ' + pData[i][0] +
+            ' | stock: ' + pData[i][4]);
+          found = true;
+        }
+      }
+      if (!found) Logger.log('NOT FOUND in Products.');
+    }
+  }
+
+  // InventoryItems side
+  var invSheet = _invGetSS().getSheetByName(INV_SHEETS.INVENTORY);
+  if (invSheet) {
+    var iLast = invSheet.getLastRow();
+    var iLastCol = invSheet.getLastColumn();
+    if (iLast >= 2) {
+      var invData = invSheet.getRange(2, 1, iLast - 1, iLastCol).getValues();
+      Logger.log('Scanning ' + invData.length + ' InventoryItems rows (cols 1-' + iLastCol + ')');
+      for (var k = 0; k < invData.length; k++) {
+        var row = invData[k];
+        for (var startIdx = 0; startIdx <= 8; startIdx += 8) {
+          if (startIdx >= row.length) continue;
+          var raw = _invText(row[startIdx]);
+          if (!raw) continue;
+          if (_invNormalize(raw) === target) {
+            Logger.log('MATCH row ' + (k + 2) + ' col ' + (startIdx + 1) +
+              ' | raw: [' + raw + ']' +
+              ' | purchased: ' + row[startIdx + 1] +
+              ' | sold: ' + row[startIdx + 2] +
+              ' | remaining: ' + row[startIdx + 3] +
+              ' | reorder: ' + row[startIdx + 4]);
+          }
+        }
+      }
+    }
+  }
+
+  // Merged result
+  var all = getAllInventoryItems();
+  var matches = all.filter(function(it) {
+    return _invNormalize(it.productName) === target;
+  });
+  Logger.log('MERGED RESULT: ' + matches.length + ' match(es)');
+  matches.forEach(function(m) { Logger.log(JSON.stringify(m, null, 2)); });
+}
+
+function testInventory() {
+  return {
+    dashboard:     getInventoryDashboardData(),
+    stats:         getInventoryStats(),
+    lowStockCount: getLowStockItems().length,
+    totalItems:    getAllInventoryItems().length
+  };
+}
+
+
+// ============================================================================
+// END OF gsinventory.gs
+// ============================================================================
