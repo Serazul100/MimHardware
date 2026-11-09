@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: radial-gradient(circle at top left, #0f0c29, #302b63, #24243e);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .login-box {
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      padding: 40px;
+      border-radius: 30px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.1);
+      width: 90%;
+      max-width: 400px;
+      text-align: center;
+      color: white;
+    }
+    .login-box h2 {
+      margin-bottom: 20px;
+      color: #00f2fe;
+      text-shadow: 0 0 15px #00f2fe;
+    }
+    .login-box input {
+      width: 100%;
+      padding: 14px;
+      margin: 10px 0;
+      border: none;
+      border-radius: 15px;
+      background: rgba(255,255,255,0.08);
+      color: white;
+      font-size: 14px;
+      box-shadow: inset 0 0 5px rgba(0,0,0,0.4);
+      outline: none;
+      transition: 0.3s;
+    }
+    .login-box input:focus {
+      box-shadow: 0 0 15px #00f2fe;
+    }
+    .btn-login {
+      background: linear-gradient(135deg, #00f2fe, #4facfe);
+      color: white;
+      border: none;
+      padding: 14px;
+      width: 100%;
+      border-radius: 50px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 15px;
+      box-shadow: 0 10px 30px rgba(0,242,254,0.4);
+      transition: 0.3s;
+    }
+    .btn-login:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 40px rgba(0,242,254,0.6);
+    }
+    .error {
+      color: #ff4757;
+      font-size: 14px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <h2>🔐 Login</h2>
+    <input type="email" id="email" placeholder="Email" required>
+    <input type="password" id="password" placeholder="Password" required>
+    <button class="btn-login" onclick="login()">Sign In</button>
+    <div class="error" id="error"></div>
+  </div>
+
+  <script>
+    function login() {
+      var email = document.getElementById('email').value.trim();
+      var password = document.getElementById('password').value.trim();
+      if (!email || !password) {
+        document.getElementById('error').innerText = 'Email and password required';
+        return;
+      }
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (res.success) {
+            // Redirect to main app with token
+            window.location.href = '<?= ScriptApp.getService().getUrl() ?>?page=dashboard&token=' + res.token;
+          } else {
+            document.getElementById('error').innerText = res.message || 'Login failed';
+          }
+        })
+        .validateLogin(email, password);
+    }
+  </script>
+</body>
+</html>

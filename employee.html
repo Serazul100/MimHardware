@@ -1,0 +1,2516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HRMS – Employee Management</title>
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <!-- Font Awesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <!-- Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <!-- DataTables -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" />
+    <style>
+        /* ─────────────── ROOT & GLOBAL ─────────────── */
+        :root {
+            --primary: #4f46e5;
+            --primary-light: #818cf8;
+            --primary-dark: #3730a3;
+            --primary-bg: #eef2ff;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --gray-50: #f8fafc;
+            --gray-100: #f1f5f9;
+            --gray-200: #e2e8f0;
+            --gray-300: #cbd5e1;
+            --gray-400: #94a3b8;
+            --gray-500: #64748b;
+            --gray-600: #475569;
+            --gray-700: #334155;
+            --gray-800: #1e293b;
+            --gray-900: #0f172a;
+            --shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+            --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.07);
+            --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.10);
+            --radius: 16px;
+            --radius-sm: 10px;
+            --transition: all 0.25s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--gray-50);
+            color: var(--gray-800);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--gray-100);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--gray-300);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--gray-400);
+        }
+
+        .app-wrapper {
+            max-width: 1440px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+            padding: 0 24px 30px 24px;
+        }
+
+        .app-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0 16px 0;
+            border-bottom: 2px solid var(--gray-100);
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .app-header .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .app-header .logo-area i {
+            font-size: 28px;
+            color: var(--primary);
+            background: var(--primary-bg);
+            padding: 10px;
+            border-radius: 12px;
+        }
+
+        .app-header .logo-area h1 {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--gray-900);
+            letter-spacing: -0.5px;
+        }
+        .app-header .logo-area h1 span {
+            color: var(--primary);
+        }
+
+        .app-header .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .app-header .header-actions .badge-demo {
+            background: var(--primary-bg);
+            color: var(--primary);
+            padding: 6px 16px;
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        /* ─────────────── TABS ─────────────── */
+        .nav-tabs-custom {
+            display: flex;
+            gap: 4px;
+            padding: 16px 0 0 0;
+            border-bottom: 2px solid var(--gray-200);
+            flex-wrap: wrap;
+            background: #fff;
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .nav-tabs-custom .tab-btn {
+            padding: 10px 22px;
+            border: none;
+            background: transparent;
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--gray-500);
+            border-radius: 10px 10px 0 0;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            position: relative;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .nav-tabs-custom .tab-btn i {
+            font-size: 16px;
+        }
+
+        .nav-tabs-custom .tab-btn:hover {
+            color: var(--gray-700);
+            background: var(--gray-100);
+        }
+
+        .nav-tabs-custom .tab-btn.active {
+            color: var(--primary);
+            background: var(--primary-bg);
+        }
+
+        .nav-tabs-custom .tab-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--primary);
+            border-radius: 10px 10px 0 0;
+        }
+
+        .nav-tabs-custom .tab-btn .badge-tab {
+            background: var(--gray-200);
+            color: var(--gray-600);
+            font-size: 11px;
+            padding: 2px 10px;
+            border-radius: 30px;
+            font-weight: 600;
+        }
+        .nav-tabs-custom .tab-btn.active .badge-tab {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        /* ─────────────── TAB CONTENT ─────────────── */
+        .tab-pane {
+            display: none;
+            padding: 24px 0 10px 0;
+            animation: fadeUp 0.3s ease;
+        }
+        .tab-pane.active {
+            display: block;
+        }
+
+        @keyframes fadeUp {
+            0% {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ─────────────── DASHBOARD CARDS ─────────────── */
+        .dash-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 18px;
+            margin-bottom: 28px;
+        }
+
+        .dash-card {
+            background: #fff;
+            border-radius: var(--radius-sm);
+            padding: 20px 22px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--gray-200);
+            transition: var(--transition);
+        }
+        .dash-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .dash-card .dash-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            margin-bottom: 12px;
+        }
+        .dash-card .dash-icon.blue {
+            background: #dbeafe;
+            color: #2563eb;
+        }
+        .dash-card .dash-icon.green {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+        .dash-card .dash-icon.red {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+        .dash-card .dash-icon.purple {
+            background: #e9d5ff;
+            color: #9333ea;
+        }
+
+        .dash-card .dash-number {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--gray-900);
+            line-height: 1.2;
+        }
+        .dash-card .dash-label {
+            font-size: 14px;
+            color: var(--gray-500);
+            font-weight: 500;
+        }
+
+        /* ─────────────── FORM ─────────────── */
+        .form-section-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--gray-800);
+            margin: 24px 0 16px 0;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--gray-100);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .form-section-title i {
+            color: var(--primary);
+        }
+
+        .form-control,
+        .form-select {
+            border-radius: var(--radius-sm);
+            border: 1.5px solid var(--gray-200);
+            padding: 10px 14px;
+            font-size: 14px;
+            transition: var(--transition);
+            font-family: 'Inter', sans-serif;
+        }
+        .form-control:focus,
+        .form-select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.12);
+        }
+        .form-label {
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--gray-700);
+            margin-bottom: 4px;
+        }
+        .form-label .required {
+            color: var(--danger);
+            margin-left: 2px;
+        }
+
+        .input-group-custom {
+            position: relative;
+        }
+        .input-group-custom .form-control {
+            padding-right: 44px;
+        }
+        .input-group-custom .input-icon {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--gray-400);
+            font-size: 16px;
+            pointer-events: none;
+        }
+
+        /* photo upload */
+        .photo-upload-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            padding: 20px;
+            border: 2px dashed var(--gray-300);
+            border-radius: var(--radius-sm);
+            background: var(--gray-50);
+            transition: var(--transition);
+            cursor: pointer;
+            min-height: 160px;
+            justify-content: center;
+        }
+        .photo-upload-wrapper:hover {
+            border-color: var(--primary);
+            background: var(--primary-bg);
+        }
+        .photo-upload-wrapper img {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #fff;
+            box-shadow: var(--shadow-md);
+        }
+        .photo-upload-wrapper .upload-text {
+            font-size: 13px;
+            color: var(--gray-500);
+            font-weight: 500;
+        }
+        .photo-upload-wrapper .upload-text i {
+            color: var(--primary);
+        }
+        .photo-upload-wrapper input[type="file"] {
+            display: none;
+        }
+
+        /* ─────────────── EMPLOYEE TABLE ─────────────── */
+        .table-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 18px;
+        }
+        .table-toolbar .search-box {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .table-toolbar .search-box input,
+        .table-toolbar .search-box select {
+            border-radius: var(--radius-sm);
+            border: 1.5px solid var(--gray-200);
+            padding: 8px 14px;
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+            background: #fff;
+        }
+        .table-toolbar .search-box input:focus,
+        .table-toolbar .search-box select:focus {
+            border-color: var(--primary);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.10);
+        }
+        .table-toolbar .action-btns {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn-custom {
+            border-radius: var(--radius-sm);
+            padding: 8px 18px;
+            font-weight: 600;
+            font-size: 13px;
+            border: none;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-family: 'Inter', sans-serif;
+        }
+        .btn-custom-primary {
+            background: var(--primary);
+            color: #fff;
+        }
+        .btn-custom-primary:hover {
+            background: var(--primary-dark);
+            color: #fff;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+        }
+        .btn-custom-success {
+            background: var(--success);
+            color: #fff;
+        }
+        .btn-custom-success:hover {
+            background: #16a34a;
+            color: #fff;
+        }
+        .btn-custom-danger {
+            background: var(--danger);
+            color: #fff;
+        }
+        .btn-custom-danger:hover {
+            background: #dc2626;
+            color: #fff;
+        }
+        .btn-custom-warning {
+            background: var(--warning);
+            color: #fff;
+        }
+        .btn-custom-warning:hover {
+            background: #d97706;
+            color: #fff;
+        }
+        .btn-custom-outline {
+            background: transparent;
+            border: 1.5px solid var(--gray-300);
+            color: var(--gray-600);
+        }
+        .btn-custom-outline:hover {
+            background: var(--gray-100);
+            border-color: var(--gray-400);
+        }
+        .btn-custom-sm {
+            padding: 5px 12px;
+            font-size: 12px;
+        }
+
+        .table-employees {
+            font-size: 14px;
+        }
+        .table-employees thead {
+            background: var(--gray-50);
+            border-bottom: 2px solid var(--gray-200);
+        }
+        .table-employees thead th {
+            font-weight: 700;
+            color: var(--gray-600);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            padding: 12px 10px;
+            border: none;
+        }
+        .table-employees tbody td {
+            padding: 10px 10px;
+            vertical-align: middle;
+            border-bottom: 1px solid var(--gray-100);
+        }
+        .table-employees tbody tr:hover {
+            background: var(--gray-50);
+        }
+        .table-employees .avatar-sm {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--gray-200);
+        }
+        .status-badge {
+            padding: 4px 14px;
+            border-radius: 30px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-badge.active {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+        .status-badge.inactive {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        /* ─────────────── PAYROLL ─────────────── */
+        .payroll-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .payroll-summary .stat-box {
+            background: #fff;
+            border-radius: var(--radius-sm);
+            padding: 16px 20px;
+            border: 1px solid var(--gray-200);
+            box-shadow: var(--shadow);
+        }
+        .payroll-summary .stat-box .stat-label {
+            font-size: 13px;
+            color: var(--gray-500);
+            font-weight: 500;
+        }
+        .payroll-summary .stat-box .stat-value {
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--gray-900);
+        }
+
+        .payroll-table-wrap {
+            overflow-x: auto;
+        }
+
+        /* ─────────────── ID CARD ─────────────── */
+        .id-card-preview {
+            max-width: 420px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: var(--radius-sm);
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+            border: 1px solid var(--gray-200);
+            padding: 20px;
+            transition: var(--transition);
+        }
+        .id-card-preview .card-header {
+            text-align: center;
+            padding-bottom: 14px;
+            border-bottom: 2px solid var(--gray-100);
+        }
+        .id-card-preview .card-header h5 {
+            font-weight: 800;
+            color: var(--primary);
+            margin: 0;
+        }
+        .id-card-preview .card-header small {
+            color: var(--gray-500);
+            font-size: 12px;
+        }
+        .id-card-preview .card-body {
+            padding: 16px 0;
+            display: flex;
+            gap: 18px;
+            align-items: center;
+        }
+        .id-card-preview .card-body .card-photo {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid var(--gray-200);
+            flex-shrink: 0;
+        }
+        .id-card-preview .card-body .card-info {
+            flex: 1;
+        }
+        .id-card-preview .card-body .card-info .info-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            padding: 2px 0;
+        }
+        .id-card-preview .card-body .card-info .info-row .label {
+            color: var(--gray-500);
+            font-weight: 500;
+        }
+        .id-card-preview .card-body .card-info .info-row .value {
+            font-weight: 600;
+            color: var(--gray-800);
+        }
+        .id-card-preview .card-footer {
+            text-align: center;
+            padding-top: 12px;
+            border-top: 2px solid var(--gray-100);
+            font-size: 11px;
+            color: var(--gray-400);
+        }
+
+        /* ─────────────── ATTENDANCE ─────────────── */
+        .attendance-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: flex-end;
+            margin-bottom: 18px;
+        }
+        .attendance-toolbar .form-group {
+            min-width: 180px;
+        }
+
+        /* ─────────────── SALARY SHEET ─────────────── */
+        .salary-summary-box {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .salary-summary-box .stat-item {
+            background: var(--gray-50);
+            border-radius: var(--radius-sm);
+            padding: 12px 16px;
+            border: 1px solid var(--gray-200);
+        }
+        .salary-summary-box .stat-item .label {
+            font-size: 12px;
+            color: var(--gray-500);
+        }
+        .salary-summary-box .stat-item .value {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--gray-800);
+        }
+
+        /* ─────────────── MODAL ─────────────── */
+        .modal-content {
+            border-radius: var(--radius-sm);
+            border: none;
+            box-shadow: var(--shadow-lg);
+        }
+        .modal-header {
+            border-bottom: 2px solid var(--gray-100);
+            padding: 18px 24px;
+        }
+        .modal-header .modal-title {
+            font-weight: 700;
+            font-size: 18px;
+        }
+        .modal-body {
+            padding: 24px;
+        }
+        .modal-footer {
+            border-top: 2px solid var(--gray-100);
+            padding: 16px 24px;
+        }
+
+        /* ─────────────── RESPONSIVE ─────────────── */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            .app-wrapper {
+                padding: 0 12px 20px 12px;
+            }
+            .app-header .logo-area h1 {
+                font-size: 18px;
+            }
+            .nav-tabs-custom .tab-btn {
+                padding: 8px 14px;
+                font-size: 13px;
+            }
+            .nav-tabs-custom .tab-btn .tab-label {
+                display: none;
+            }
+            .dash-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+            }
+            .dash-card .dash-number {
+                font-size: 22px;
+            }
+            .table-toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .table-toolbar .search-box {
+                flex-direction: column;
+                width: 100%;
+            }
+            .table-toolbar .search-box input,
+            .table-toolbar .search-box select {
+                width: 100%;
+            }
+            .table-toolbar .action-btns {
+                width: 100%;
+                justify-content: flex-start;
+            }
+            .id-card-preview .card-body {
+                flex-direction: column;
+                text-align: center;
+            }
+            .id-card-preview .card-body .card-info .info-row {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .dash-grid {
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+            }
+            .dash-card {
+                padding: 14px 16px;
+            }
+            .dash-card .dash-number {
+                font-size: 20px;
+            }
+        }
+
+        .text-primary-custom {
+            color: var(--primary);
+        }
+        .bg-primary-custom-light {
+            background: var(--primary-bg);
+        }
+        .gap-2 {
+            gap: 8px;
+        }
+        .gap-3 {
+            gap: 16px;
+        }
+        .fw-700 {
+            font-weight: 700;
+        }
+        .fs-small {
+            font-size: 13px;
+        }
+        .cursor-pointer {
+            cursor: pointer;
+        }
+        .no-data {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--gray-400);
+        }
+        .no-data i {
+            font-size: 48px;
+            margin-bottom: 12px;
+            display: block;
+        }
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9999;
+        }
+        .toast-custom {
+            background: #fff;
+            border-radius: var(--radius-sm);
+            padding: 14px 22px;
+            box-shadow: var(--shadow-lg);
+            border-left: 4px solid var(--primary);
+            min-width: 260px;
+            margin-bottom: 10px;
+            animation: slideIn 0.3s ease;
+        }
+        .toast-custom.success {
+            border-left-color: var(--success);
+        }
+        .toast-custom.error {
+            border-left-color: var(--danger);
+        }
+        @keyframes slideIn {
+            0% {
+                transform: translateX(40px);
+                opacity: 0;
+            }
+            100% {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .photo-thumb {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--gray-200);
+        }
+
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            .id-card-preview {
+                box-shadow: none !important;
+                border: 1px solid #ddd !important;
+                max-width: 100% !important;
+            }
+            body {
+                padding: 0 !important;
+                background: #fff !important;
+            }
+            .app-wrapper {
+                padding: 0 !important;
+                box-shadow: none !important;
+            }
+        }
+
+        /* attendance status colors */
+        .attendance-status-present { background: #dcfce7; color: #16a34a; }
+        .attendance-status-absent { background: #fee2e2; color: #dc2626; }
+        .attendance-status-leave { background: #fef3c7; color: #d97706; }
+        .attendance-status-holiday { background: #dbeafe; color: #2563eb; }
+        .attendance-status-halfday { background: #fce4ec; color: #d81b60; }
+    </style>
+</head>
+<body>
+
+    <div class="app-wrapper" id="app">
+
+        <!-- ════════════════ HEADER ════════════════ -->
+        <header class="app-header">
+            <div class="logo-area">
+                <i class="fas fa-users-gear"></i>
+                <h1>HR<span>MS</span></h1>
+                <span class="badge-demo">v2.0</span>
+            </div>
+            <div class="header-actions">
+                <span class="badge-demo"><i class="far fa-calendar-alt"></i> <span id="currentDate"></span></span>
+                <button class="btn-custom btn-custom-outline btn-custom-sm" onclick="refreshAll()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+        </header>
+
+        <!-- ════════════════ TABS ════════════════ -->
+        <nav class="nav-tabs-custom no-print" id="mainTabs">
+            <button class="tab-btn active" data-tab="dashboard">
+                <i class="fas fa-chart-pie"></i>
+                <span class="tab-label">Dashboard</span>
+            </button>
+            <button class="tab-btn" data-tab="addEmployee">
+                <i class="fas fa-user-plus"></i>
+                <span class="tab-label">Add Employee</span>
+            </button>
+            <button class="tab-btn" data-tab="employeeList">
+                <i class="fas fa-list-ul"></i>
+                <span class="tab-label">Employee List</span>
+                <span class="badge-tab" id="listCount">0</span>
+            </button>
+            <button class="tab-btn" data-tab="payroll">
+                <i class="fas fa-coins"></i>
+                <span class="tab-label">Payroll</span>
+            </button>
+            <button class="tab-btn" data-tab="attendance">
+                <i class="fas fa-calendar-check"></i>
+                <span class="tab-label">Attendance</span>
+            </button>
+            <button class="tab-btn" data-tab="salarySheet">
+                <i class="fas fa-file-invoice-dollar"></i>
+                <span class="tab-label">Salary Sheet</span>
+            </button>
+            <button class="tab-btn" data-tab="idCard">
+                <i class="fas fa-id-card"></i>
+                <span class="tab-label">ID Card</span>
+            </button>
+        </nav>
+
+        <!-- ════════════════ TAB: DASHBOARD ════════════════ -->
+        <div class="tab-pane active" id="tab-dashboard">
+            <!-- (Dashboard content unchanged) -->
+            <div class="dash-grid">
+                <div class="dash-card">
+                    <div class="dash-icon blue"><i class="fas fa-users"></i></div>
+                    <div class="dash-number" id="dashTotal">0</div>
+                    <div class="dash-label">Total Employees</div>
+                </div>
+                <div class="dash-card">
+                    <div class="dash-icon green"><i class="fas fa-user-check"></i></div>
+                    <div class="dash-number" id="dashActive">0</div>
+                    <div class="dash-label">Active Employees</div>
+                </div>
+                <div class="dash-card">
+                    <div class="dash-icon red"><i class="fas fa-user-slash"></i></div>
+                    <div class="dash-number" id="dashInactive">0</div>
+                    <div class="dash-label">Inactive Employees</div>
+                </div>
+                <div class="dash-card">
+                    <div class="dash-icon purple"><i class="fas fa-building"></i></div>
+                    <div class="dash-number" id="dashDepartments">0</div>
+                    <div class="dash-label">Departments</div>
+                </div>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-body">
+                            <h6 class="fw-700 mb-3"><i class="fas fa-chart-bar text-primary-custom me-2"></i> Department Distribution</h6>
+                            <div id="deptChartContainer" style="min-height:180px;">
+                                <div id="deptChart" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-body">
+                            <h6 class="fw-700 mb-3"><i class="fas fa-clock text-primary-custom me-2"></i> Quick Actions</h6>
+                            <div class="d-flex flex-wrap gap-2">
+                                <button class="btn-custom btn-custom-primary" onclick="switchTab('addEmployee')">
+                                    <i class="fas fa-user-plus"></i> Add New Employee
+                                </button>
+                                <button class="btn-custom btn-custom-success" onclick="switchTab('employeeList')">
+                                    <i class="fas fa-list"></i> View All
+                                </button>
+                                <button class="btn-custom btn-custom-warning" onclick="switchTab('payroll')">
+                                    <i class="fas fa-coins"></i> Payroll
+                                </button>
+                                <button class="btn-custom btn-custom-outline" onclick="switchTab('attendance')">
+                                    <i class="fas fa-calendar-check"></i> Attendance
+                                </button>
+                            </div>
+                            <hr />
+                            <div class="text-muted fs-small">
+                                <i class="far fa-clock me-1"></i> Last updated: <span id="lastUpdated">Just now</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ════════════════ TAB: ADD EMPLOYEE (unchanged) ════════════════ -->
+        <div class="tab-pane" id="tab-addEmployee">
+            <form id="employeeForm" novalidate>
+                <input type="hidden" id="editId" value="" />
+                <!-- Basic Information -->
+                <div class="form-section-title"><i class="fas fa-user-circle"></i> Basic Information</div>
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Employee ID <span class="required">*</span></label>
+                        <div class="input-group-custom">
+                            <input type="text" class="form-control" id="empId" readonly placeholder="Auto generated" />
+                            <span class="input-icon"><i class="fas fa-hashtag"></i></span>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Employee Code <span class="required">*</span></label>
+                        <input type="text" class="form-control" id="empCode" placeholder="EMP001" readonly />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Employee Name <span class="required">*</span></label>
+                        <input type="text" class="form-control" id="empName" placeholder="Full name" required />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Father's Name</label>
+                        <input type="text" class="form-control" id="fatherName" placeholder="Father's name" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Mother's Name</label>
+                        <input type="text" class="form-control" id="motherName" placeholder="Mother's name" />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Gender <span class="required">*</span></label>
+                        <select class="form-select" id="gender">
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Date of Birth</label>
+                        <input type="date" class="form-control" id="dob" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">National ID</label>
+                        <input type="text" class="form-control" id="nationalId" placeholder="NID number" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Blood Group</label>
+                        <select class="form-select" id="bloodGroup">
+                            <option value="">Select</option>
+                            <option value="A+">A+</option>
+                            <option value="A-">A-</option>
+                            <option value="B+">B+</option>
+                            <option value="B-">B-</option>
+                            <option value="AB+">AB+</option>
+                            <option value="AB-">AB-</option>
+                            <option value="O+">O+</option>
+                            <option value="O-">O-</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Contact Information -->
+                <div class="form-section-title"><i class="fas fa-address-book"></i> Contact Information</div>
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Mobile Number <span class="required">*</span></label>
+                        <input type="tel" class="form-control" id="mobile" placeholder="01xxxxxxxxx" required />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Alternative Mobile</label>
+                        <input type="tel" class="form-control" id="altMobile" placeholder="01xxxxxxxxx" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" id="email" placeholder="email@example.com" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Present Address</label>
+                        <textarea class="form-control" id="presentAddress" rows="2" placeholder="Present address"></textarea>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Permanent Address</label>
+                        <textarea class="form-control" id="permanentAddress" rows="2" placeholder="Permanent address"></textarea>
+                    </div>
+                </div>
+
+                <!-- Department & Designation -->
+                <div class="form-section-title"><i class="fas fa-briefcase"></i> Department & Designation</div>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Department <span class="required">*</span></label>
+                        <select class="form-select" id="department">
+                            <option value="Administration">Administration</option>
+                            <option value="Accounts">Accounts</option>
+                            <option value="Sales">Sales</option>
+                            <option value="Purchase">Purchase</option>
+                            <option value="Store">Store</option>
+                            <option value="IT">IT</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Designation <span class="required">*</span></label>
+                        <select class="form-select" id="designation">
+                            <option value="Manager">Manager</option>
+                            <option value="Assistant Manager">Assistant Manager</option>
+                            <option value="Officer">Officer</option>
+                            <option value="Executive">Executive</option>
+                            <option value="Supervisor">Supervisor</option>
+                            <option value="Staff">Staff</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" id="status">
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Salary & Join Date -->
+                <div class="form-section-title"><i class="fas fa-money-bill-wave"></i> Employment Details</div>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Join Date</label>
+                        <input type="date" class="form-control" id="joinDate" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Basic Salary</label>
+                        <input type="number" class="form-control" id="salary" placeholder="0.00" step="0.01" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Employee Photo</label>
+                        <div class="photo-upload-wrapper" id="photoUploadWrapper">
+                            <img id="photoPreview" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect fill='%23e2e8f0' width='100' height='100' rx='50'/%3E%3Ctext x='50' y='55' text-anchor='middle' font-size='32' fill='%2394a3b8' font-family='sans-serif'%3E📷%3C/text%3E%3C/svg%3E" alt="Photo" />
+                            <div class="upload-text"><i class="fas fa-cloud-upload-alt"></i> Click to upload photo</div>
+                            <input type="file" id="photoFile" accept="image/*" />
+                        </div>
+                        <div class="fs-small text-muted mt-1">Photo will be stored in Google Drive</div>
+                    </div>
+                </div>
+
+                <!-- Form Actions -->
+                <div class="row mt-4">
+                    <div class="col-12 d-flex gap-3 flex-wrap">
+                        <button type="submit" class="btn-custom btn-custom-primary" id="submitBtn">
+                            <i class="fas fa-save"></i> <span id="submitText">Save Employee</span>
+                        </button>
+                        <button type="reset" class="btn-custom btn-custom-outline" onclick="resetForm()">
+                            <i class="fas fa-undo"></i> Reset
+                        </button>
+                        <button type="button" class="btn-custom btn-custom-danger" id="deleteBtn" style="display:none;" onclick="deleteEmployee()">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                        <button type="button" class="btn-custom btn-custom-outline" onclick="switchTab('employeeList')">
+                            <i class="fas fa-arrow-left"></i> Back to List
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- ════════════════ TAB: EMPLOYEE LIST (unchanged) ════════════════ -->
+        <div class="tab-pane" id="tab-employeeList">
+            <div class="table-toolbar">
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="🔍 Search by name, code, mobile..." class="form-control" style="width:240px;" />
+                    <select id="filterStatus" class="form-select" style="width:160px;">
+                        <option value="all">All Employees</option>
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                    </select>
+                    <select id="filterDepartment" class="form-select" style="width:160px;">
+                        <option value="all">All Departments</option>
+                        <option value="Administration">Administration</option>
+                        <option value="Accounts">Accounts</option>
+                        <option value="Sales">Sales</option>
+                        <option value="Purchase">Purchase</option>
+                        <option value="Store">Store</option>
+                        <option value="IT">IT</option>
+                    </select>
+                </div>
+                <div class="action-btns">
+                    <button class="btn-custom btn-custom-success btn-custom-sm" onclick="exportPDF()">
+                        <i class="fas fa-file-pdf"></i> PDF
+                    </button>
+                    <button class="btn-custom btn-custom-primary btn-custom-sm" onclick="exportExcel()">
+                        <i class="fas fa-file-excel"></i> Excel
+                    </button>
+                    <button class="btn-custom btn-custom-outline btn-custom-sm" onclick="window.print()">
+                        <i class="fas fa-print"></i> Print
+                    </button>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-employments table-hover table-employees" id="employeeTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Photo</th>
+                            <th>Code</th>
+                            <th>Name</th>
+                            <th>Mobile</th>
+                            <th>Department</th>
+                            <th>Designation</th>
+                            <th>Status</th>
+                            <th style="width:120px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="employeeTableBody">
+                        <!-- dynamic -->
+                    </tbody>
+                </table>
+            </div>
+            <div id="listPagination" class="d-flex justify-content-between align-items-center mt-3 fs-small">
+                <span id="listInfo">Showing 0 entries</span>
+                <div class="d-flex gap-1">
+                    <button class="btn-custom btn-custom-outline btn-custom-sm" onclick="changePage(-1)">Prev</button>
+                    <span class="px-3 py-1" id="pageInfo">Page 1</span>
+                    <button class="btn-custom btn-custom-outline btn-custom-sm" onclick="changePage(1)">Next</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ════════════════ TAB: PAYROLL (unchanged) ════════════════ -->
+        <div class="tab-pane" id="tab-payroll">
+            <div class="payroll-summary">
+                <div class="stat-box">
+                    <div class="stat-label">Total Payroll</div>
+                    <div class="stat-value" id="payrollTotal">৳ 0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Employees on Payroll</div>
+                    <div class="stat-value" id="payrollCount">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Average Salary</div>
+                    <div class="stat-value" id="payrollAvg">৳ 0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Highest Salary</div>
+                    <div class="stat-value" id="payrollMax">৳ 0</div>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h6 class="fw-700 mb-3"><i class="fas fa-calculator text-primary-custom me-2"></i> Payroll Details</h6>
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-3">
+                            <label class="form-label">Select Employee</label>
+                            <select class="form-select" id="payrollEmployeeSelect">
+                                <option value="">— All Employees —</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Month</label>
+                            <input type="month" class="form-control" id="payrollMonth" />
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn-custom btn-custom-primary" onclick="calculatePayroll()">
+                                <i class="fas fa-calculator"></i> Calculate
+                            </button>
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn-custom btn-custom-success" onclick="exportPayrollPDF()">
+                                <i class="fas fa-file-pdf"></i> Export PDF
+                            </button>
+                        </div>
+                    </div>
+                    <hr />
+                    <div class="payroll-table-wrap">
+                        <table class="table table-sm table-bordered" id="payrollTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Employee</th>
+                                    <th>Code</th>
+                                    <th>Basic</th>
+                                    <th>House Rent</th>
+                                    <th>Medical</th>
+                                    <th>Transport</th>
+                                    <th>Other</th>
+                                    <th>Gross</th>
+                                    <th>Tax</th>
+                                    <th>PF</th>
+                                    <th>Net Salary</th>
+                                </tr>
+                            </thead>
+                            <tbody id="payrollTableBody">
+                                <tr><td colspan="12" class="text-center text-muted">Select employee and click Calculate</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ════════════════ TAB: ATTENDANCE (NEW) ════════════════ -->
+        <div class="tab-pane" id="tab-attendance">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h6 class="fw-700 mb-3"><i class="fas fa-calendar-day text-primary-custom me-2"></i> Mark Attendance</h6>
+                    <div class="attendance-toolbar">
+                        <div class="form-group">
+                            <label class="form-label">Date</label>
+                            <input type="date" class="form-control" id="attendanceDate" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">&nbsp;</label>
+                            <button class="btn-custom btn-custom-primary" onclick="loadAttendance()">
+                                <i class="fas fa-sync"></i> Load
+                            </button>
+                            <button class="btn-custom btn-custom-success" onclick="saveAttendance()">
+                                <i class="fas fa-save"></i> Save All
+                            </button>
+                            <button class="btn-custom btn-custom-warning" onclick="markAllPresent()">
+                                <i class="fas fa-check-double"></i> Mark All Present
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered" id="attendanceTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Employee</th>
+                                    <th>Code</th>
+                                    <th>Department</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendanceTableBody">
+                                <tr><td colspan="5" class="text-center text-muted">Select a date and click Load</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-2 fs-small text-muted">
+                        <i class="fas fa-info-circle"></i> Status: Present, Absent, Leave, Holiday, Half-day
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ════════════════ TAB: SALARY SHEET (NEW) ════════════════ -->
+        <div class="tab-pane" id="tab-salarySheet">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <h6 class="fw-700 mb-3"><i class="fas fa-file-invoice text-primary-custom me-2"></i> Generate Salary Sheet</h6>
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-3">
+                            <label class="form-label">Month</label>
+                            <input type="month" class="form-control" id="salaryMonth" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Employee</label>
+                            <select class="form-select" id="salaryEmployeeSelect">
+                                <option value="">— All Employees —</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn-custom btn-custom-primary" onclick="generateSalarySheet()">
+                                <i class="fas fa-calculator"></i> Generate
+                            </button>
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn-custom btn-custom-success" onclick="exportSalaryPDF()">
+                                <i class="fas fa-file-pdf"></i> Export PDF
+                            </button>
+                        </div>
+                    </div>
+                    <hr />
+                    <div class="salary-summary-box" id="salarySummaryBox">
+                        <div class="stat-item">
+                            <div class="label">Total Employees</div>
+                            <div class="value" id="salaryTotalEmployees">0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="label">Total Gross Salary</div>
+                            <div class="value" id="salaryTotalGross">৳ 0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="label">Total Net Pay</div>
+                            <div class="value" id="salaryTotalNet">৳ 0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="label">Total Tax</div>
+                            <div class="value" id="salaryTotalTax">৳ 0</div>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered" id="salaryTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Employee</th>
+                                    <th>Code</th>
+                                    <th>Basic</th>
+                                    <th>Allowances</th>
+                                    <th>Gross</th>
+                                    <th>Tax</th>
+                                    <th>PF</th>
+                                    <th>Net Pay</th>
+                                    <th>Present</th>
+                                    <th>Absent</th>
+                                </tr>
+                            </thead>
+                            <tbody id="salaryTableBody">
+                                <tr><td colspan="11" class="text-center text-muted">Select month and click Generate</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ════════════════ TAB: ID CARD (unchanged) ════════════════ -->
+        <div class="tab-pane" id="tab-idCard">
+            <div class="row g-4">
+                <div class="col-lg-5">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body">
+                            <h6 class="fw-700 mb-3"><i class="fas fa-id-card text-primary-custom me-2"></i> Generate ID Card</h6>
+                            <div class="mb-3">
+                                <label class="form-label">Select Employee</label>
+                                <select class="form-select" id="idCardEmployeeSelect">
+                                    <option value="">— Choose Employee —</option>
+                                </select>
+                            </div>
+                            <button class="btn-custom btn-custom-primary w-100" onclick="generateIDCard()">
+                                <i class="fas fa-id-card"></i> Generate ID Card
+                            </button>
+                            <hr />
+                            <div class="d-flex gap-2 flex-wrap">
+                                <button class="btn-custom btn-custom-success btn-custom-sm" onclick="printIDCard()">
+                                    <i class="fas fa-print"></i> Print
+                                </button>
+                                <button class="btn-custom btn-custom-outline btn-custom-sm" onclick="downloadIDCard()">
+                                    <i class="fas fa-download"></i> Download
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-7">
+                    <div id="idCardPreviewContainer">
+                        <div class="id-card-preview" id="idCardPreview">
+                            <div class="card-header">
+                                <h5>🏢 HRMS</h5>
+                                <small>Employee Identity Card</small>
+                            </div>
+                            <div class="card-body">
+                                <img class="card-photo" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90' viewBox='0 0 90 90'%3E%3Crect fill='%23e2e8f0' width='90' height='90' rx='45'/%3E%3Ctext x='45' y='52' text-anchor='middle' font-size='30' fill='%2394a3b8' font-family='sans-serif'%3E👤%3C/text%3E%3C/svg%3E" alt="Photo" />
+                                <div class="card-info">
+                                    <div class="info-row"><span class="label">Name</span><span class="value" id="idCardName">—</span></div>
+                                    <div class="info-row"><span class="label">Code</span><span class="value" id="idCardCode">—</span></div>
+                                    <div class="info-row"><span class="label">Department</span><span class="value" id="idCardDept">—</span></div>
+                                    <div class="info-row"><span class="label">Designation</span><span class="value" id="idCardDesig">—</span></div>
+                                    <div class="info-row"><span class="label">Mobile</span><span class="value" id="idCardMobile">—</span></div>
+                                </div>
+                            </div>
+                            <div class="card-footer">
+                                <span id="idCardFooter">Valid until: —</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /.app-wrapper -->
+
+    <!-- Toast container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- ════════════════ SCRIPTS ════════════════ -->
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js">
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js">
+    </script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js">
+    </script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js">
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js">
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js">
+    </script>
+
+    <script>
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  GLOBAL STATE
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        let allEmployees = [];
+        let filteredEmployees = [];
+        let currentPage = 1;
+        const pageSize = 10;
+        let editingId = null;
+
+        // Attendance data: object keyed by "YYYY-MM-DD" -> array of { employeeId, status }
+        let attendanceData = {};
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  INIT
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('currentDate').textContent = new Date().toLocaleDateString('en-US', {
+                weekday: 'short',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+
+            // Tab switching
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const tab = this.dataset.tab;
+                    switchTab(tab);
+                });
+            });
+
+            // Photo upload
+            const wrapper = document.getElementById('photoUploadWrapper');
+            const fileInput = document.getElementById('photoFile');
+            wrapper.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(ev) {
+                        document.getElementById('photoPreview').src = ev.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            // Form submit
+            document.getElementById('employeeForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                saveEmployee();
+            });
+
+            // Search & filter
+            document.getElementById('searchInput').addEventListener('input', applyFilters);
+            document.getElementById('filterStatus').addEventListener('change', applyFilters);
+            document.getElementById('filterDepartment').addEventListener('change', applyFilters);
+
+            // Payroll month default
+            const now = new Date();
+            document.getElementById('payrollMonth').value = now.getFullYear() + '-' +
+                String(now.getMonth() + 1).padStart(2, '0');
+
+            // Attendance date default
+            document.getElementById('attendanceDate').value = now.toISOString().split('T')[0];
+
+            // Salary month default
+            document.getElementById('salaryMonth').value = now.getFullYear() + '-' +
+                String(now.getMonth() + 1).padStart(2, '0');
+
+            // Load data
+            refreshAll();
+        });
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  TAB SWITCH
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+
+            const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+            if (btn) btn.classList.add('active');
+
+            const pane = document.getElementById(`tab-${tabId}`);
+            if (pane) pane.classList.add('active');
+
+            if (tabId === 'dashboard' || tabId === 'employeeList') {
+                refreshAll();
+            }
+            if (tabId === 'payroll') {
+                populatePayrollSelect();
+                calculatePayroll();
+            }
+            if (tabId === 'attendance') {
+                loadAttendance();
+            }
+            if (tabId === 'salarySheet') {
+                populateSalarySelect();
+                generateSalarySheet();
+            }
+            if (tabId === 'idCard') {
+                populateIDCardSelect();
+            }
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  REFRESH ALL
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function refreshAll() {
+            // In production: google.script.run... 
+            loadMockData();
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  MOCK DATA (for demo)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        let mockIdCounter = 10;
+
+        function loadMockData() {
+            if (allEmployees.length === 0) {
+                const depts = ['Administration', 'Accounts', 'Sales', 'Purchase', 'Store', 'IT'];
+                const desigs = ['Manager', 'Assistant Manager', 'Officer', 'Executive', 'Supervisor', 'Staff'];
+                const names = ['Md. Rahman', 'Shahida Akhter', 'Kamal Hossain', 'Nusrat Jahan', 'Rafiqul Islam',
+                    'Sonia Sultana', 'Masud Rana', 'Taslima Begum', 'Jubayer Ahmed', 'Farida Yasmin'
+                ];
+                const mobiles = ['01712345678', '01823456789', '01934567890', '01545678901', '01656789012',
+                    '01767890123', '01878901234', '01989012345', '01590123456', '01601234567'
+                ];
+
+                for (let i = 0; i < 25; i++) {
+                    const idx = i % names.length;
+                    const dept = depts[i % depts.length];
+                    const desig = desigs[i % desigs.length];
+                    const status = i % 3 === 0 ? 'Inactive' : 'Active';
+                    const salary = 15000 + Math.floor(Math.random() * 60000);
+                    allEmployees.push({
+                        id: (i + 1).toString(),
+                        employeeCode: 'EMP' + String(i + 1).padStart(3, '0'),
+                        name: names[idx] + ' ' + (i + 1),
+                        fatherName: 'Father of ' + names[idx],
+                        motherName: 'Mother of ' + names[idx],
+                        gender: i % 2 === 0 ? 'Male' : 'Female',
+                        dob: '1990-01-01',
+                        nationalId: 'NID' + String(100000000 + i),
+                        bloodGroup: ['A+', 'B+', 'O+', 'AB+'][i % 4],
+                        mobile: mobiles[idx],
+                        altMobile: '017' + String(10000000 + i),
+                        email: 'emp' + (i + 1) + '@example.com',
+                        presentAddress: 'House #' + (i + 1) + ', Road #' + (i + 2) + ', Dhaka',
+                        permanentAddress: 'Village: ' + (i + 1) + ', District: Dhaka',
+                        department: dept,
+                        designation: desig,
+                        status: status,
+                        joinDate: '2023-01-01',
+                        salary: salary,
+                        photo: ''
+                    });
+                }
+                mockIdCounter = allEmployees.length + 1;
+            }
+
+            // Seed some attendance for the current month
+            if (Object.keys(attendanceData).length === 0) {
+                const today = new Date();
+                const year = today.getFullYear();
+                const month = String(today.getMonth() + 1).padStart(2, '0');
+                for (let d = 1; d <= 10; d++) {
+                    const dateStr = `${year}-${month}-${String(d).padStart(2, '0')}`;
+                    attendanceData[dateStr] = allEmployees.map(emp => ({
+                        employeeId: emp.id,
+                        status: Math.random() > 0.2 ? 'Present' : (Math.random() > 0.5 ? 'Absent' : 'Leave')
+                    }));
+                }
+            }
+
+            renderAll();
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  RENDER ALL
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function renderAll() {
+            updateDashboard();
+            renderTable();
+            populatePayrollSelect();
+            populateSalarySelect();
+            populateIDCardSelect();
+            document.getElementById('listCount').textContent = allEmployees.length;
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  DASHBOARD (unchanged)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function updateDashboard() {
+            const total = allEmployees.length;
+            const active = allEmployees.filter(e => e.status === 'Active').length;
+            const inactive = allEmployees.filter(e => e.status === 'Inactive').length;
+            const depts = [...new Set(allEmployees.map(e => e.department))];
+
+            document.getElementById('dashTotal').textContent = total;
+            document.getElementById('dashActive').textContent = active;
+            document.getElementById('dashInactive').textContent = inactive;
+            document.getElementById('dashDepartments').textContent = depts.length;
+            document.getElementById('lastUpdated').textContent = new Date().toLocaleString();
+
+            const deptCounts = {};
+            allEmployees.forEach(e => { deptCounts[e.department] = (deptCounts[e.department] || 0) + 1; });
+            const chartDiv = document.getElementById('deptChart');
+            chartDiv.innerHTML = '';
+            const colors = ['#4f46e5', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
+            let idx = 0;
+            for (const [dept, count] of Object.entries(deptCounts)) {
+                const pct = total ? Math.round((count / total) * 100) : 0;
+                const color = colors[idx % colors.length];
+                chartDiv.innerHTML += `
+                    <div style="flex:1;min-width:80px;background:#f1f5f9;border-radius:8px;padding:8px 10px;text-align:center;">
+                        <div style="font-weight:700;font-size:18px;color:${color};">${count}</div>
+                        <div style="font-size:11px;color:var(--gray-500);">${dept}</div>
+                        <div style="height:4px;background:${color};border-radius:4px;width:${pct}%;margin:4px auto 0;"></div>
+                    </div>
+                `;
+                idx++;
+            }
+            if (!chartDiv.innerHTML) {
+                chartDiv.innerHTML = '<div class="text-muted fs-small">No data</div>';
+            }
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  EMPLOYEE TABLE (unchanged)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function applyFilters() { currentPage = 1;
+            renderTable(); }
+
+        function renderTable() {
+            const keyword = document.getElementById('searchInput').value.toLowerCase().trim();
+            const statusFilter = document.getElementById('filterStatus').value;
+            const deptFilter = document.getElementById('filterDepartment').value;
+
+            filteredEmployees = allEmployees.filter(e => {
+                let match = true;
+                if (keyword) {
+                    const searchable = (e.name + ' ' + e.employeeCode + ' ' + e.mobile + ' ' + e.department + ' ' + e
+                        .designation).toLowerCase();
+                    match = match && searchable.includes(keyword);
+                }
+                if (statusFilter !== 'all') match = match && e.status === statusFilter;
+                if (deptFilter !== 'all') match = match && e.department === deptFilter;
+                return match;
+            });
+
+            const total = filteredEmployees.length;
+            const totalPages = Math.ceil(total / pageSize) || 1;
+            if (currentPage > totalPages) currentPage = totalPages;
+            const start = (currentPage - 1) * pageSize;
+            const end = Math.min(start + pageSize, total);
+            const pageData = filteredEmployees.slice(start, end);
+
+            const tbody = document.getElementById('employeeTableBody');
+            if (pageData.length === 0) {
+                tbody.innerHTML =
+                    `<tr><td colspan="9" class="text-center text-muted py-4"><i class="fas fa-search me-2"></i>No employees found</td></tr>`;
+            } else {
+                tbody.innerHTML = pageData.map((e, i) => `
+                    <tr>
+                        <td>${start + i + 1}</td>
+                        <td>
+                            <img src="${e.photo || 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2250%22 height=%2250%22 viewBox=%220 0 50 50%22%3E%3Crect fill=%22%23e2e8f0%22 width=%2250%22 height=%2250%22 rx=%2225%22/%3E%3Ctext x=%2225%22 y=%2230%22 text-anchor=%22middle%22 font-size=%2220%22 fill=%22%2394a3b8%22%3E👤%3C/text%3E%3C/svg%3E'}" class="avatar-sm" alt="photo" />
+                        </td>
+                        <td><span class="fw-600">${e.employeeCode}</span></td>
+                        <td>${e.name}</td>
+                        <td>${e.mobile}</td>
+                        <td>${e.department}</td>
+                        <td>${e.designation}</td>
+                        <td><span class="status-badge ${e.status.toLowerCase()}">${e.status}</span></td>
+                        <td>
+                            <div class="d-flex gap-1 flex-wrap">
+                                <button class="btn-custom btn-custom-primary btn-custom-sm" onclick="editEmployee('${e.id}')"><i class="fas fa-edit"></i></button>
+                                <button class="btn-custom btn-custom-danger btn-custom-sm" onclick="deleteEmployeeById('${e.id}')"><i class="fas fa-trash"></i></button>
+                                <button class="btn-custom btn-custom-outline btn-custom-sm" onclick="viewIDCard('${e.id}')"><i class="fas fa-id-card"></i></button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            document.getElementById('listInfo').textContent = `Showing ${total > 0 ? start + 1 : 0} - ${end} of ${total} entries`;
+            document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
+            document.getElementById('listCount').textContent = total;
+        }
+
+        function changePage(delta) {
+            const total = filteredEmployees.length;
+            const totalPages = Math.ceil(total / pageSize) || 1;
+            const newPage = currentPage + delta;
+            if (newPage >= 1 && newPage <= totalPages) {
+                currentPage = newPage;
+                renderTable();
+            }
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  CRUD OPERATIONS (mock)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function saveEmployee() {
+            const data = gatherFormData();
+            if (!data.name || !data.mobile) {
+                showToast('Please fill in Name and Mobile number.', 'error');
+                return;
+            }
+
+            const editId = document.getElementById('editId').value;
+            if (editId) {
+                const idx = allEmployees.findIndex(e => e.id === editId);
+                if (idx !== -1) {
+                    allEmployees[idx] = { ...allEmployees[idx], ...data };
+                    showToast('Employee updated successfully!', 'success');
+                }
+            } else {
+                const newId = (mockIdCounter++).toString();
+                const code = 'EMP' + String(allEmployees.length + 1).padStart(3, '0');
+                allEmployees.push({
+                    id: newId,
+                    employeeCode: code,
+                    ...data,
+                    photo: data.photo || ''
+                });
+                showToast('Employee added successfully!', 'success');
+            }
+
+            resetForm();
+            renderAll();
+            switchTab('employeeList');
+        }
+
+        function gatherFormData() {
+            return {
+                name: document.getElementById('empName').value.trim(),
+                fatherName: document.getElementById('fatherName').value.trim(),
+                motherName: document.getElementById('motherName').value.trim(),
+                gender: document.getElementById('gender').value,
+                dob: document.getElementById('dob').value,
+                nationalId: document.getElementById('nationalId').value.trim(),
+                bloodGroup: document.getElementById('bloodGroup').value,
+                mobile: document.getElementById('mobile').value.trim(),
+                altMobile: document.getElementById('altMobile').value.trim(),
+                email: document.getElementById('email').value.trim(),
+                presentAddress: document.getElementById('presentAddress').value.trim(),
+                permanentAddress: document.getElementById('permanentAddress').value.trim(),
+                department: document.getElementById('department').value,
+                designation: document.getElementById('designation').value,
+                status: document.getElementById('status').value,
+                joinDate: document.getElementById('joinDate').value,
+                salary: parseFloat(document.getElementById('salary').value) || 0,
+                photo: document.getElementById('photoPreview').src || '',
+            };
+        }
+
+        function editEmployee(id) {
+            const emp = allEmployees.find(e => e.id === id);
+            if (!emp) return;
+
+            editingId = id;
+            document.getElementById('editId').value = id;
+            document.getElementById('empId').value = id;
+            document.getElementById('empCode').value = emp.employeeCode;
+            document.getElementById('empName').value = emp.name || '';
+            document.getElementById('fatherName').value = emp.fatherName || '';
+            document.getElementById('motherName').value = emp.motherName || '';
+            document.getElementById('gender').value = emp.gender || 'Male';
+            document.getElementById('dob').value = emp.dob || '';
+            document.getElementById('nationalId').value = emp.nationalId || '';
+            document.getElementById('bloodGroup').value = emp.bloodGroup || '';
+            document.getElementById('mobile').value = emp.mobile || '';
+            document.getElementById('altMobile').value = emp.altMobile || '';
+            document.getElementById('email').value = emp.email || '';
+            document.getElementById('presentAddress').value = emp.presentAddress || '';
+            document.getElementById('permanentAddress').value = emp.permanentAddress || '';
+            document.getElementById('department').value = emp.department || 'Administration';
+            document.getElementById('designation').value = emp.designation || 'Officer';
+            document.getElementById('status').value = emp.status || 'Active';
+            document.getElementById('joinDate').value = emp.joinDate || '';
+            document.getElementById('salary').value = emp.salary || '';
+
+            if (emp.photo) {
+                document.getElementById('photoPreview').src = emp.photo;
+            }
+
+            document.getElementById('submitText').textContent = 'Update Employee';
+            document.getElementById('deleteBtn').style.display = 'inline-flex';
+            switchTab('addEmployee');
+            showToast('Edit mode: Update employee details.', 'success');
+        }
+
+        function deleteEmployee() {
+            const id = document.getElementById('editId').value;
+            if (!id) return;
+            if (!confirm('Are you sure you want to delete this employee?')) return;
+            deleteEmployeeById(id);
+        }
+
+        function deleteEmployeeById(id) {
+            if (!confirm('Delete this employee permanently?')) return;
+            allEmployees = allEmployees.filter(e => e.id !== id);
+            // Also remove from attendance
+            for (const date in attendanceData) {
+                attendanceData[date] = attendanceData[date].filter(a => a.employeeId !== id);
+            }
+            if (document.getElementById('editId').value === id) {
+                resetForm();
+            }
+            renderAll();
+            showToast('Employee deleted.', 'success');
+            switchTab('employeeList');
+        }
+
+        function resetForm() {
+            document.getElementById('employeeForm').reset();
+            document.getElementById('editId').value = '';
+            document.getElementById('empId').value = '';
+            document.getElementById('empCode').value = 'EMP' + String(allEmployees.length + 1).padStart(3, '0');
+            document.getElementById('submitText').textContent = 'Save Employee';
+            document.getElementById('deleteBtn').style.display = 'none';
+            document.getElementById('photoPreview').src =
+                'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22 viewBox=%220 0 100 100%22%3E%3Crect fill=%22%23e2e8f0%22 width=%22100%22 height=%22100%22 rx=%2250%22/%3E%3Ctext x=%2250%22 y=%2255%22 text-anchor=%22middle%22 font-size=%2232%22 fill=%22%2394a3b8%22 font-family=%22sans-serif%22%3E📷%3C/text%3E%3C/svg%3E';
+            document.getElementById('photoFile').value = '';
+            editingId = null;
+            const nextCode = 'EMP' + String(allEmployees.length + 1).padStart(3, '0');
+            document.getElementById('empCode').value = nextCode;
+            document.getElementById('empId').value = '#' + (allEmployees.length + 1);
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  PAYROLL (unchanged)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function populatePayrollSelect() {
+            const sel = document.getElementById('payrollEmployeeSelect');
+            const currentVal = sel.value;
+            sel.innerHTML = '<option value="">— All Employees —</option>';
+            allEmployees.forEach(e => {
+                const opt = document.createElement('option');
+                opt.value = e.id;
+                opt.textContent = `${e.employeeCode} - ${e.name} (${e.department})`;
+                sel.appendChild(opt);
+            });
+            if (currentVal) sel.value = currentVal;
+        }
+
+        function calculatePayroll() {
+            const empId = document.getElementById('payrollEmployeeSelect').value;
+            let employees = empId ? allEmployees.filter(e => e.id === empId) : allEmployees;
+            employees = employees.filter(e => e.status === 'Active');
+
+            const tbody = document.getElementById('payrollTableBody');
+            if (employees.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="12" class="text-center text-muted">No active employees found.</td></tr>';
+                document.getElementById('payrollTotal').textContent = '৳ 0';
+                document.getElementById('payrollCount').textContent = '0';
+                document.getElementById('payrollAvg').textContent = '৳ 0';
+                document.getElementById('payrollMax').textContent = '৳ 0';
+                return;
+            }
+
+            let totalGross = 0;
+            let maxSalary = 0;
+
+            tbody.innerHTML = employees.map((e, i) => {
+                const basic = e.salary || 0;
+                const houseRent = Math.round(basic * 0.30);
+                const medical = Math.round(basic * 0.10);
+                const transport = Math.round(basic * 0.05);
+                const other = Math.round(basic * 0.03);
+                const gross = basic + houseRent + medical + transport + other;
+                const tax = Math.round(gross * 0.05);
+                const pf = Math.round(gross * 0.08);
+                const net = gross - tax - pf;
+
+                totalGross += gross;
+                if (gross > maxSalary) maxSalary = gross;
+
+                return `
+                    <tr>
+                        <td>${i + 1}</td>
+                        <td>${e.name}</td>
+                        <td>${e.employeeCode}</td>
+                        <td>${basic.toFixed(2)}</td>
+                        <td>${houseRent.toFixed(2)}</td>
+                        <td>${medical.toFixed(2)}</td>
+                        <td>${transport.toFixed(2)}</td>
+                        <td>${other.toFixed(2)}</td>
+                        <td><strong>${gross.toFixed(2)}</strong></td>
+                        <td>${tax.toFixed(2)}</td>
+                        <td>${pf.toFixed(2)}</td>
+                        <td><strong class="text-primary">${net.toFixed(2)}</strong></td>
+                    </tr>
+                `;
+            }).join('');
+
+            const avg = employees.length ? totalGross / employees.length : 0;
+            document.getElementById('payrollTotal').textContent = '৳ ' + totalGross.toFixed(2);
+            document.getElementById('payrollCount').textContent = employees.length;
+            document.getElementById('payrollAvg').textContent = '৳ ' + avg.toFixed(2);
+            document.getElementById('payrollMax').textContent = '৳ ' + maxSalary.toFixed(2);
+        }
+
+        function exportPayrollPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('landscape', 'mm', 'a4');
+            doc.setFontSize(16);
+            doc.text('Payroll Report', 14, 20);
+            doc.setFontSize(10);
+            doc.text('Generated: ' + new Date().toLocaleString(), 14, 28);
+
+            const rows = [];
+            const tbody = document.getElementById('payrollTableBody');
+            const trs = tbody.querySelectorAll('tr');
+            trs.forEach(tr => {
+                const tds = tr.querySelectorAll('td');
+                if (tds.length > 1) {
+                    rows.push(Array.from(tds).map(td => td.textContent.trim()));
+                }
+            });
+
+            if (rows.length) {
+                doc.autoTable({
+                    head: [
+                        ['#', 'Employee', 'Code', 'Basic', 'House Rent', 'Medical', 'Transport', 'Other', 'Gross',
+                            'Tax', 'PF', 'Net Salary'
+                        ]
+                    ],
+                    body: rows,
+                    startY: 35,
+                    styles: { fontSize: 8 },
+                    headStyles: { fillColor: [79, 70, 229] },
+                });
+            }
+            doc.save('payroll_report.pdf');
+            showToast('Payroll PDF exported!', 'success');
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  ATTENDANCE (NEW)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function loadAttendance() {
+            const date = document.getElementById('attendanceDate').value;
+            if (!date) {
+                showToast('Please select a date.', 'error');
+                return;
+            }
+
+            const tbody = document.getElementById('attendanceTableBody');
+            // Get attendance for that date, or create default "Present" for all
+            let dayData = attendanceData[date];
+            if (!dayData) {
+                // Initialize with Present for all employees
+                dayData = allEmployees.map(emp => ({
+                    employeeId: emp.id,
+                    status: 'Present'
+                }));
+                attendanceData[date] = dayData;
+            }
+
+            // Build table rows
+            if (allEmployees.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No employees found.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = allEmployees.map((emp, idx) => {
+                const record = dayData.find(a => a.employeeId === emp.id);
+                const status = record ? record.status : 'Present';
+                return `
+                    <tr>
+                        <td>${idx + 1}</td>
+                        <td>${emp.name}</td>
+                        <td>${emp.employeeCode}</td>
+                        <td>${emp.department}</td>
+                        <td>
+                            <select class="form-select form-select-sm attendance-status" data-emp-id="${emp.id}" style="width:140px;">
+                                <option value="Present" ${status === 'Present' ? 'selected' : ''}>Present</option>
+                                <option value="Absent" ${status === 'Absent' ? 'selected' : ''}>Absent</option>
+                                <option value="Leave" ${status === 'Leave' ? 'selected' : ''}>Leave</option>
+                                <option value="Holiday" ${status === 'Holiday' ? 'selected' : ''}>Holiday</option>
+                                <option value="Half-day" ${status === 'Half-day' ? 'selected' : ''}>Half-day</option>
+                            </select>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function saveAttendance() {
+            const date = document.getElementById('attendanceDate').value;
+            if (!date) {
+                showToast('Please select a date.', 'error');
+                return;
+            }
+
+            // Gather data from dropdowns
+            const selects = document.querySelectorAll('#attendanceTableBody .attendance-status');
+            const dayData = [];
+            selects.forEach(sel => {
+                const employeeId = sel.dataset.empId;
+                const status = sel.value;
+                dayData.push({ employeeId, status });
+            });
+
+            attendanceData[date] = dayData;
+            showToast(`Attendance saved for ${date}.`, 'success');
+        }
+
+        function markAllPresent() {
+            const selects = document.querySelectorAll('#attendanceTableBody .attendance-status');
+            selects.forEach(sel => {
+                sel.value = 'Present';
+            });
+            showToast('All marked as Present. Click Save to store.', 'success');
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  SALARY SHEET (NEW)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function populateSalarySelect() {
+            const sel = document.getElementById('salaryEmployeeSelect');
+            const currentVal = sel.value;
+            sel.innerHTML = '<option value="">— All Employees —</option>';
+            allEmployees.forEach(e => {
+                const opt = document.createElement('option');
+                opt.value = e.id;
+                opt.textContent = `${e.employeeCode} - ${e.name}`;
+                sel.appendChild(opt);
+            });
+            if (currentVal) sel.value = currentVal;
+        }
+
+        function generateSalarySheet() {
+            const month = document.getElementById('salaryMonth').value;
+            if (!month) {
+                showToast('Please select a month.', 'error');
+                return;
+            }
+            const empId = document.getElementById('salaryEmployeeSelect').value;
+            let employees = empId ? allEmployees.filter(e => e.id === empId) : allEmployees;
+            employees = employees.filter(e => e.status === 'Active');
+
+            if (employees.length === 0) {
+                document.getElementById('salaryTableBody').innerHTML =
+                    '<tr><td colspan="11" class="text-center text-muted">No active employees found.</td></tr>';
+                document.getElementById('salaryTotalEmployees').textContent = '0';
+                document.getElementById('salaryTotalGross').textContent = '৳ 0';
+                document.getElementById('salaryTotalNet').textContent = '৳ 0';
+                document.getElementById('salaryTotalTax').textContent = '৳ 0';
+                return;
+            }
+
+            const tbody = document.getElementById('salaryTableBody');
+            const [year, mon] = month.split('-').map(Number);
+            const daysInMonth = new Date(year, mon, 0).getDate();
+            let workingDays = 0;
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dt = new Date(year, mon - 1, d);
+                const day = dt.getDay();
+                if (day !== 0 && day !== 6) workingDays++;
+            }
+
+            let totalGross = 0,
+                totalNet = 0,
+                totalTax = 0;
+
+            tbody.innerHTML = employees.map((emp, idx) => {
+                const basic = emp.salary || 0;
+                const houseRent = Math.round(basic * 0.30);
+                const medical = Math.round(basic * 0.10);
+                const transport = Math.round(basic * 0.05);
+                const other = Math.round(basic * 0.03);
+                const allowances = houseRent + medical + transport + other;
+
+                // Get attendance for this month
+                const dateStr = (d) => {
+                    const m = String(mon).padStart(2, '0');
+                    const dd = String(d).padStart(2, '0');
+                    return `${year}-${m}-${dd}`;
+                };
+                let present = 0;
+                let absent = 0;
+                for (let d = 1; d <= daysInMonth; d++) {
+                    const dt = new Date(year, mon - 1, d);
+                    if (dt.getDay() === 0 || dt.getDay() === 6) continue; // skip weekends
+                    const key = dateStr(d);
+                    const dayData = attendanceData[key] || [];
+                    const record = dayData.find(a => a.employeeId === emp.id);
+                    if (record) {
+                        if (record.status === 'Present' || record.status === 'Half-day') {
+                            present += (record.status === 'Half-day') ? 0.5 : 1;
+                        } else if (record.status === 'Absent') {
+                            absent++;
+                        } // Leave/Holiday count as present? We'll treat as present for simplicity
+                        else {
+                            present += 1; // Leave, Holiday count as present
+                        }
+                    } else {
+                        // Default: present if no record (treat as present)
+                        present += 1;
+                    }
+                }
+
+                // Calculate daily rate and salary
+                const dailyRate = (basic + allowances) / workingDays;
+                const gross = dailyRate * present;
+                const tax = Math.round(gross * 0.05);
+                const pf = Math.round(gross * 0.08);
+                const net = gross - tax - pf;
+
+                totalGross += gross;
+                totalNet += net;
+                totalTax += tax;
+
+                return `
+                    <tr>
+                        <td>${idx + 1}</td>
+                        <td>${emp.name}</td>
+                        <td>${emp.employeeCode}</td>
+                        <td>${basic.toFixed(2)}</td>
+                        <td>${allowances.toFixed(2)}</td>
+                        <td><strong>${gross.toFixed(2)}</strong></td>
+                        <td>${tax.toFixed(2)}</td>
+                        <td>${pf.toFixed(2)}</td>
+                        <td><strong class="text-primary">${net.toFixed(2)}</strong></td>
+                        <td>${present.toFixed(1)}</td>
+                        <td>${absent}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('salaryTotalEmployees').textContent = employees.length;
+            document.getElementById('salaryTotalGross').textContent = '৳ ' + totalGross.toFixed(2);
+            document.getElementById('salaryTotalNet').textContent = '৳ ' + totalNet.toFixed(2);
+            document.getElementById('salaryTotalTax').textContent = '৳ ' + totalTax.toFixed(2);
+        }
+
+        function exportSalaryPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('landscape', 'mm', 'a4');
+            doc.setFontSize(16);
+            doc.text('Salary Sheet', 14, 20);
+            doc.setFontSize(10);
+            doc.text('Generated: ' + new Date().toLocaleString(), 14, 28);
+
+            const rows = [];
+            const tbody = document.getElementById('salaryTableBody');
+            const trs = tbody.querySelectorAll('tr');
+            trs.forEach(tr => {
+                const tds = tr.querySelectorAll('td');
+                if (tds.length > 1) {
+                    rows.push(Array.from(tds).map(td => td.textContent.trim()));
+                }
+            });
+
+            if (rows.length) {
+                doc.autoTable({
+                    head: [
+                        ['#', 'Employee', 'Code', 'Basic', 'Allowances', 'Gross', 'Tax', 'PF', 'Net Pay', 'Present',
+                            'Absent'
+                        ]
+                    ],
+                    body: rows,
+                    startY: 35,
+                    styles: { fontSize: 8 },
+                    headStyles: { fillColor: [79, 70, 229] },
+                });
+            }
+            doc.save('salary_sheet.pdf');
+            showToast('Salary Sheet PDF exported!', 'success');
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  ID CARD (unchanged)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function populateIDCardSelect() {
+            const sel = document.getElementById('idCardEmployeeSelect');
+            const currentVal = sel.value;
+            sel.innerHTML = '<option value="">— Choose Employee —</option>';
+            allEmployees.forEach(e => {
+                const opt = document.createElement('option');
+                opt.value = e.id;
+                opt.textContent = `${e.employeeCode} - ${e.name}`;
+                sel.appendChild(opt);
+            });
+            if (currentVal) sel.value = currentVal;
+        }
+
+        function generateIDCard() {
+            const id = document.getElementById('idCardEmployeeSelect').value;
+            if (!id) {
+                showToast('Please select an employee.', 'error');
+                return;
+            }
+            viewIDCard(id);
+        }
+
+        function viewIDCard(id) {
+            const emp = allEmployees.find(e => e.id === id);
+            if (!emp) {
+                showToast('Employee not found.', 'error');
+                return;
+            }
+
+            document.getElementById('idCardName').textContent = emp.name || '—';
+            document.getElementById('idCardCode').textContent = emp.employeeCode || '—';
+            document.getElementById('idCardDept').textContent = emp.department || '—';
+            document.getElementById('idCardDesig').textContent = emp.designation || '—';
+            document.getElementById('idCardMobile').textContent = emp.mobile || '—';
+
+            const photoImg = document.querySelector('#idCardPreview .card-photo');
+            if (emp.photo && emp.photo.startsWith('data:image')) {
+                photoImg.src = emp.photo;
+            } else {
+                photoImg.src =
+                    'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2290%22 height=%2290%22 viewBox=%220 0 90 90%22%3E%3Crect fill=%22%23e2e8f0%22 width=%2290%22 height=%2290%22 rx=%2245%22/%3E%3Ctext x=%2245%22 y=%2252%22 text-anchor=%22middle%22 font-size=%2230%22 fill=%22%2394a3b8%22%3E👤%3C/text%3E%3C/svg%3E';
+            }
+
+            document.getElementById('idCardFooter').textContent = 'Valid until: ' + new Date().toLocaleDateString();
+
+            switchTab('idCard');
+            showToast('ID Card generated for ' + emp.name, 'success');
+        }
+
+        function printIDCard() {
+            const content = document.getElementById('idCardPreviewContainer').innerHTML;
+            const win = window.open('', '_blank');
+            win.document.write(`
+                <html><head><title>Employee ID Card</title>
+                <style>
+                    body { display:flex; justify-content:center; align-items:center; min-height:100vh; margin:0; background:#f1f5f9; font-family:'Inter',sans-serif; }
+                    .id-card-preview { max-width:420px; background:#fff; border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,0.10); overflow:hidden; border:1px solid #e2e8f0; padding:20px; }
+                    .id-card-preview .card-header { text-align:center; padding-bottom:14px; border-bottom:2px solid #f1f5f9; }
+                    .id-card-preview .card-header h5 { font-weight:800; color:#4f46e5; margin:0; }
+                    .id-card-preview .card-header small { color:#64748b; font-size:12px; }
+                    .id-card-preview .card-body { padding:16px 0; display:flex; gap:18px; align-items:center; }
+                    .id-card-preview .card-body .card-photo { width:90px; height:90px; border-radius:50%; object-fit:cover; border:3px solid #e2e8f0; flex-shrink:0; }
+                    .id-card-preview .card-body .card-info { flex:1; }
+                    .id-card-preview .card-body .card-info .info-row { display:flex; justify-content:space-between; font-size:13px; padding:2px 0; }
+                    .id-card-preview .card-body .card-info .info-row .label { color:#64748b; font-weight:500; }
+                    .id-card-preview .card-body .card-info .info-row .value { font-weight:600; color:#1e293b; }
+                    .id-card-preview .card-footer { text-align:center; padding-top:12px; border-top:2px solid #f1f5f9; font-size:11px; color:#94a3b8; }
+                    @media print { body { background:#fff; } .id-card-preview { box-shadow:none !important; } }
+                </style>
+                </head><body>
+                ${content}
+                </body></html>
+            `);
+            win.document.close();
+            setTimeout(() => { win.print(); }, 500);
+        }
+
+        function downloadIDCard() {
+            const content = document.getElementById('idCardPreviewContainer').innerHTML;
+            const html = `
+                <html><head><title>ID Card</title>
+                <style>
+                    body { display:flex; justify-content:center; align-items:center; min-height:100vh; margin:0; font-family:'Inter',sans-serif; background:#f1f5f9; }
+                    .id-card-preview { max-width:420px; background:#fff; border-radius:16px; padding:20px; border:1px solid #e2e8f0; }
+                    .id-card-preview .card-header { text-align:center; padding-bottom:14px; border-bottom:2px solid #f1f5f9; }
+                    .id-card-preview .card-header h5 { font-weight:800; color:#4f46e5; margin:0; }
+                    .id-card-preview .card-header small { color:#64748b; font-size:12px; }
+                    .id-card-preview .card-body { padding:16px 0; display:flex; gap:18px; align-items:center; }
+                    .id-card-preview .card-body .card-photo { width:90px; height:90px; border-radius:50%; object-fit:cover; border:3px solid #e2e8f0; flex-shrink:0; }
+                    .id-card-preview .card-body .card-info { flex:1; }
+                    .id-card-preview .card-body .card-info .info-row { display:flex; justify-content:space-between; font-size:13px; padding:2px 0; }
+                    .id-card-preview .card-body .card-info .info-row .label { color:#64748b; font-weight:500; }
+                    .id-card-preview .card-body .card-info .info-row .value { font-weight:600; color:#1e293b; }
+                    .id-card-preview .card-footer { text-align:center; padding-top:12px; border-top:2px solid #f1f5f9; font-size:11px; color:#94a3b8; }
+                </style>
+                </head><body>
+                ${content}
+                </body></html>
+            `;
+            const blob = new Blob([html], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'employee_id_card.html';
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('ID Card downloaded!', 'success');
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  EXPORT: PDF & EXCEL (unchanged)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function exportPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('landscape', 'mm', 'a4');
+            doc.setFontSize(16);
+            doc.text('Employee List', 14, 20);
+            doc.setFontSize(10);
+            doc.text('Generated: ' + new Date().toLocaleString(), 14, 28);
+
+            const rows = [];
+            const tbody = document.getElementById('employeeTableBody');
+            const trs = tbody.querySelectorAll('tr');
+            trs.forEach(tr => {
+                const tds = tr.querySelectorAll('td');
+                if (tds.length > 1 && !tds[0].textContent.includes('No employees')) {
+                    const row = [];
+                    for (let i = 0; i < tds.length; i++) {
+                        if (i === 1) continue;
+                        if (i === tds.length - 1) break;
+                        const txt = tds[i].textContent.trim();
+                        row.push(txt);
+                    }
+                    rows.push(row);
+                }
+            });
+
+            if (rows.length) {
+                doc.autoTable({
+                    head: [
+                        ['#', 'Code', 'Name', 'Mobile', 'Department', 'Designation', 'Status']
+                    ],
+                    body: rows,
+                    startY: 35,
+                    styles: { fontSize: 8 },
+                    headStyles: { fillColor: [79, 70, 229] },
+                });
+            }
+            doc.save('employee_list.pdf');
+            showToast('PDF exported!', 'success');
+        }
+
+        function exportExcel() {
+            const data = [];
+            const tbody = document.getElementById('employeeTableBody');
+            const trs = tbody.querySelectorAll('tr');
+            trs.forEach(tr => {
+                const tds = tr.querySelectorAll('td');
+                if (tds.length > 1 && !tds[0].textContent.includes('No employees')) {
+                    const row = {};
+                    const headers = ['Sl', 'Code', 'Name', 'Mobile', 'Department', 'Designation', 'Status'];
+                    let idx = 0;
+                    for (let i = 0; i < tds.length; i++) {
+                        if (i === 1) continue;
+                        if (i === tds.length - 1) break;
+                        const txt = tds[i].textContent.trim();
+                        row[headers[idx] || 'Col' + idx] = txt;
+                        idx++;
+                    }
+                    data.push(row);
+                }
+            });
+
+            if (data.length === 0) {
+                showToast('No data to export.', 'error');
+                return;
+            }
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(data);
+            XLSX.utils.book_append_sheet(wb, ws, 'Employees');
+            XLSX.writeFile(wb, 'employee_list.xlsx');
+            showToast('Excel exported!', 'success');
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  TOAST
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast-custom ${type}`;
+            toast.innerHTML = `
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} me-2"></i>
+                ${message}
+            `;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(40px)';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        //  GOOGLE APPS SCRIPT INTEGRATION (commented)
+        // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        /*
+        // Replace mock functions with these when deploying to GAS
+        function refreshAll() {
+            google.script.run
+                .withSuccessHandler(function(data) {
+                    allEmployees = data;
+                    renderAll();
+                })
+                .withFailureHandler(function(err) {
+                    showToast('Error loading data: ' + err.message, 'error');
+                })
+                .getEmployees();
+        }
+
+        function saveEmployee() {
+            const data = gatherFormData();
+            const editId = document.getElementById('editId').value;
+            const payload = { ...data, id: editId || undefined };
+
+            google.script.run
+                .withSuccessHandler(function(result) {
+                    showToast(editId ? 'Employee updated!' : 'Employee added!', 'success');
+                    resetForm();
+                    refreshAll();
+                    switchTab('employeeList');
+                })
+                .withFailureHandler(function(err) {
+                    showToast('Error: ' + err.message, 'error');
+                })
+                .saveEmployee(payload);
+        }
+
+        function deleteEmployeeById(id) {
+            if (!confirm('Delete this employee?')) return;
+            google.script.run
+                .withSuccessHandler(function() {
+                    showToast('Employee deleted.', 'success');
+                    refreshAll();
+                    switchTab('employeeList');
+                })
+                .withFailureHandler(function(err) {
+                    showToast('Error: ' + err.message, 'error');
+                })
+                .deleteEmployee(id);
+        }
+
+        // Attendance functions
+        function saveAttendance() {
+            const date = document.getElementById('attendanceDate').value;
+            const selects = document.querySelectorAll('#attendanceTableBody .attendance-status');
+            const records = [];
+            selects.forEach(sel => {
+                records.push({
+                    employeeId: sel.dataset.empId,
+                    date: date,
+                    status: sel.value
+                });
+            });
+            google.script.run
+                .withSuccessHandler(function() {
+                    showToast('Attendance saved!', 'success');
+                    loadAttendance();
+                })
+                .withFailureHandler(function(err) {
+                    showToast('Error: ' + err.message, 'error');
+                })
+                .markAttendance(records);
+        }
+
+        function loadAttendance() {
+            const date = document.getElementById('attendanceDate').value;
+            if (!date) return;
+            google.script.run
+                .withSuccessHandler(function(data) {
+                    // data is array of {employeeId, date, status}
+                    // Build table
+                    const tbody = document.getElementById('attendanceTableBody');
+                    // ... similar to mock but populate from data
+                })
+                .withFailureHandler(function(err) {
+                    showToast('Error loading attendance: ' + err.message, 'error');
+                })
+                .getAttendanceByDate(date);
+        }
+        */
+    </script>
+</body>
+</html>

@@ -1,0 +1,1666 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MIM ERP – Premium Dashboard</title>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- Chart.js DataLabels Plugin (optional, for better charts) -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+
+  <style>
+    /* ============================================================
+       PREMIUM DASHBOARD – MIM ERP
+       Glassmorphism · 3D Buttons · Neon Accents · Animations
+       ============================================================ */
+
+    /* ─── ROOT VARIABLES ─── */
+    :root {
+      --glass-bg: rgba(255, 255, 255, 0.06);
+      --glass-border: rgba(255, 255, 255, 0.10);
+      --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+      --neon-blue: #0ea5e9;
+      --neon-cyan: #22d3ee;
+      --neon-purple: #a855f7;
+      --neon-pink: #ec4899;
+      --neon-green: #22c55e;
+      --neon-orange: #f59e0b;
+      --neon-red: #ef4444;
+      --neon-gold: #fbbf24;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --bg-dark: #0b1220;
+      --bg-card: rgba(255, 255, 255, 0.05);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      padding: 0;
+      margin: 0;
+      min-height: 100vh;
+      background-image:
+        radial-gradient(ellipse at 10% 20%, rgba(14, 165, 233, 0.06) 0%, transparent 60%),
+        radial-gradient(ellipse at 90% 80%, rgba(168, 85, 247, 0.06) 0%, transparent 60%);
+    }
+
+    /* ─── CUSTOM SCROLLBAR ─── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb { background: rgba(14, 165, 233, 0.3); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(14, 165, 233, 0.6); }
+
+    /* ============================================================
+       DASHBOARD CONTAINER
+       ============================================================ */
+    .dashboard-container {
+      padding: 16px 20px 30px 20px;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    /* ─── HEADER ─── */
+    .dash-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 24px;
+      padding: 16px 24px;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(12px);
+    }
+
+    .dash-header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .dash-header-left .logo-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(14, 165, 233, 0.3);
+    }
+
+    .dash-title-group h1 {
+      font-size: 26px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #fff 30%, var(--neon-blue) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin: 0;
+      line-height: 1.2;
+    }
+
+    .dash-title-group .subtitle {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .dash-title-group .subtitle .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      display: inline-block;
+      animation: pulse-dot 1.5s infinite;
+    }
+    @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    .dash-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .dash-date {
+      font-size: 13px;
+      color: var(--text-secondary);
+      background: rgba(255, 255, 255, 0.04);
+      padding: 6px 16px;
+      border-radius: 30px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 500;
+    }
+
+    .search-box {
+      display: flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 30px;
+      padding: 4px 6px 4px 16px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      transition: 0.3s;
+    }
+    .search-box:focus-within {
+      border-color: var(--neon-blue);
+      box-shadow: 0 0 20px rgba(14, 165, 233, 0.1);
+    }
+    .search-box input {
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      padding: 6px 8px;
+      font-size: 13px;
+      outline: none;
+      width: 140px;
+      font-family: 'Inter', sans-serif;
+    }
+    .search-box input::placeholder { color: var(--text-secondary); opacity: 0.6; }
+    .search-box button {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 6px 10px;
+      font-size: 14px;
+      transition: 0.2s;
+    }
+    .search-box button:hover { color: var(--neon-blue); }
+
+    /* ─── 3D COLORFUL BUTTONS ─── */
+    .btn-3d {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 22px;
+      border: none;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 13px;
+      color: #fff;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      transform: translateY(0);
+      text-decoration: none;
+      font-family: 'Inter', sans-serif;
+      position: relative;
+      overflow: hidden;
+      min-height: 42px;
+    }
+    .btn-3d::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent 60%);
+      pointer-events: none;
+      border-radius: inherit;
+    }
+    .btn-3d:active { transform: translateY(3px); }
+
+    /* ─── NEON GLOW BUTTONS ─── */
+    .btn-3d-neon-blue {
+      background: linear-gradient(135deg, #0ea5e9, #0284c7);
+      box-shadow: 0 4px 0 #0369a1, 0 8px 24px rgba(14, 165, 233, 0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+    }
+    .btn-3d-neon-blue:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #0369a1, 0 12px 32px rgba(14, 165, 233, 0.5), inset 0 1px 0 rgba(255,255,255,0.2); }
+
+    .btn-3d-neon-purple {
+      background: linear-gradient(135deg, #a855f7, #7c3aed);
+      box-shadow: 0 4px 0 #6d28d9, 0 8px 24px rgba(168, 85, 247, 0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+    }
+    .btn-3d-neon-purple:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #6d28d9, 0 12px 32px rgba(168, 85, 247, 0.5), inset 0 1px 0 rgba(255,255,255,0.2); }
+
+    .btn-3d-neon-pink {
+      background: linear-gradient(135deg, #ec4899, #db2777);
+      box-shadow: 0 4px 0 #be185d, 0 8px 24px rgba(236, 72, 153, 0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+    }
+    .btn-3d-neon-pink:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #be185d, 0 12px 32px rgba(236, 72, 153, 0.5), inset 0 1px 0 rgba(255,255,255,0.2); }
+
+    .btn-3d-neon-green {
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      box-shadow: 0 4px 0 #15803d, 0 8px 24px rgba(34, 197, 94, 0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+    }
+    .btn-3d-neon-green:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #15803d, 0 12px 32px rgba(34, 197, 94, 0.5), inset 0 1px 0 rgba(255,255,255,0.2); }
+
+    .btn-3d-neon-orange {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      box-shadow: 0 4px 0 #b45309, 0 8px 24px rgba(245, 158, 11, 0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+      color: #1e293b;
+    }
+    .btn-3d-neon-orange:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #b45309, 0 12px 32px rgba(245, 158, 11, 0.5), inset 0 1px 0 rgba(255,255,255,0.2); }
+
+    .btn-3d-neon-red {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+      box-shadow: 0 4px 0 #b91c1c, 0 8px 24px rgba(239, 68, 68, 0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+    }
+    .btn-3d-neon-red:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #b91c1c, 0 12px 32px rgba(239, 68, 68, 0.5), inset 0 1px 0 rgba(255,255,255,0.2); }
+
+    .btn-3d-neon-gold {
+      background: linear-gradient(135deg, #fbbf24, #f59e0b);
+      box-shadow: 0 4px 0 #d97706, 0 8px 24px rgba(251, 191, 36, 0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+      color: #1e293b;
+    }
+    .btn-3d-neon-gold:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #d97706, 0 12px 32px rgba(251, 191, 36, 0.5), inset 0 1px 0 rgba(255,255,255,0.2); }
+
+    .btn-3d-neon-cyan {
+      background: linear-gradient(135deg, #22d3ee, #06b6d4);
+      box-shadow: 0 4px 0 #0891b2, 0 8px 24px rgba(34, 211, 238, 0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+    }
+    .btn-3d-neon-cyan:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #0891b2, 0 12px 32px rgba(34, 211, 238, 0.5), inset 0 1px 0 rgba(255,255,255,0.2); }
+
+    /* ─── GLASS OUTLINE BUTTON ─── */
+    .btn-3d-glass {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-primary);
+      box-shadow: 0 4px 0 rgba(255, 255, 255, 0.02), 0 8px 24px rgba(0,0,0,0.15);
+    }
+    .btn-3d-glass:hover { background: rgba(255, 255, 255, 0.08); transform: translateY(-2px); border-color: rgba(255,255,255,0.15); }
+
+    .btn-3d-sm { padding: 6px 14px; font-size: 12px; min-height: 34px; }
+    .btn-3d-lg { padding: 14px 32px; font-size: 16px; min-height: 52px; }
+
+    /* ─── FILTER BAR ─── */
+    .dash-filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 14px 20px;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(12px);
+      margin-bottom: 24px;
+      align-items: flex-end;
+    }
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 120px;
+    }
+    .filter-group label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-secondary);
+      opacity: 0.7;
+    }
+    .filter-group input,
+    .filter-group select {
+      padding: 8px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-primary);
+      font-size: 13px;
+      outline: none;
+      width: 100%;
+      font-family: 'Inter', sans-serif;
+      transition: 0.3s;
+    }
+    .filter-group input:focus,
+    .filter-group select:focus {
+      border-color: var(--neon-blue);
+      box-shadow: 0 0 20px rgba(14, 165, 233, 0.08);
+    }
+    .filter-quick {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .filter-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    /* ─── KPI GRID ─── */
+    .dash-kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .kpi-card-dash {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 16px;
+      padding: 16px 18px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(12px);
+      transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+      position: relative;
+      overflow: hidden;
+      cursor: default;
+    }
+    .kpi-card-dash::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent-color, var(--neon-blue)), transparent);
+      opacity: 0.6;
+    }
+    .kpi-card-dash:hover {
+      transform: translateY(-4px) scale(1.01);
+      background: rgba(255, 255, 255, 0.05);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+      border-color: rgba(255, 255, 255, 0.08);
+    }
+    .kpi-card-dash .kpi-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .kpi-card-dash .kpi-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .kpi-card-dash .kpi-icon.blue { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
+    .kpi-card-dash .kpi-icon.purple { background: linear-gradient(135deg, #a855f7, #7c3aed); }
+    .kpi-card-dash .kpi-icon.green { background: linear-gradient(135deg, #22c55e, #16a34a); }
+    .kpi-card-dash .kpi-icon.orange { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .kpi-card-dash .kpi-icon.cyan { background: linear-gradient(135deg, #22d3ee, #06b6d4); }
+    .kpi-card-dash .kpi-icon.red { background: linear-gradient(135deg, #ef4444, #dc2626); }
+    .kpi-card-dash .kpi-icon.yellow { background: linear-gradient(135deg, #fbbf24, #f59e0b); }
+    .kpi-card-dash .kpi-icon.pink { background: linear-gradient(135deg, #ec4899, #db2777); }
+
+    .kpi-card-dash .kpi-change {
+      font-size: 11px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 10px;
+      border-radius: 30px;
+      background: rgba(34, 197, 94, 0.15);
+      color: #22c55e;
+    }
+    .kpi-card-dash .kpi-change.down {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+    }
+
+    .kpi-card-dash .kpi-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--text-secondary);
+      margin-top: 8px;
+    }
+    .kpi-card-dash .kpi-value {
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--text-primary);
+      line-height: 1.2;
+      margin-top: 2px;
+    }
+    .kpi-card-dash .kpi-sub {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+      opacity: 0.6;
+    }
+
+    /* ─── SPARKLINE CANVAS ─── */
+    .sparkline-wrap {
+      margin-top: 8px;
+      height: 32px;
+      width: 100%;
+    }
+    .sparkline-wrap canvas {
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* ─── CHARTS ROW ─── */
+    .dash-chart-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+    .chart-card {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 16px;
+      padding: 16px 16px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(12px);
+      transition: 0.3s;
+    }
+    .chart-card:hover {
+      border-color: rgba(255, 255, 255, 0.08);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    }
+    .chart-header {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .chart-header i { color: var(--neon-blue); }
+    .chart-card canvas { width: 100% !important; height: auto !important; max-height: 180px; }
+
+    /* ─── TWO COLUMN CARDS ─── */
+    .dash-two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+    .dash-card {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 16px;
+      padding: 16px 18px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(12px);
+      transition: 0.3s;
+    }
+    .dash-card:hover {
+      border-color: rgba(255, 255, 255, 0.08);
+    }
+    .dash-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--text-primary);
+      margin-bottom: 10px;
+    }
+    .dash-card-header i { color: var(--neon-blue); margin-right: 6px; }
+    .badge-count {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-secondary);
+      font-size: 11px;
+      padding: 2px 12px;
+      border-radius: 30px;
+    }
+
+    .dash-table-wrap {
+      overflow-x: auto;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+    .dash-table-wrap table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .dash-table-wrap th {
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-secondary);
+      font-weight: 600;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 6px 8px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    .dash-table-wrap td {
+      padding: 6px 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      color: var(--text-primary);
+    }
+    .dash-table-wrap tr:hover td { background: rgba(255, 255, 255, 0.03); }
+
+    .status-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 30px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .status-badge.critical { background: rgba(239,68,68,0.15); color: #ef4444; }
+    .status-badge.low { background: rgba(245,158,11,0.15); color: #f59e0b; }
+    .status-badge.normal { background: rgba(34,197,94,0.15); color: #22c55e; }
+    .status-badge.sale { background: rgba(14,165,233,0.15); color: #0ea5e9; }
+    .status-badge.purchase { background: rgba(168,85,247,0.15); color: #a855f7; }
+    .status-badge.expense { background: rgba(245,158,11,0.15); color: #f59e0b; }
+    .status-badge.payment { background: rgba(239,68,68,0.15); color: #ef4444; }
+    .status-badge.receipt { background: rgba(34,197,94,0.15); color: #22c55e; }
+    .status-badge.pending { background: rgba(245,158,11,0.15); color: #f59e0b; }
+    .status-badge.paid { background: rgba(34,197,94,0.15); color: #22c55e; }
+
+    .full-width { grid-column: 1 / -1; }
+
+    /* ─── SUMMARY GRID ─── */
+    .dash-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .summary-item {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 12px;
+      padding: 10px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      text-align: center;
+      transition: 0.3s;
+    }
+    .summary-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+      transform: translateY(-2px);
+    }
+    .summary-item .label {
+      font-size: 10px;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      font-weight: 600;
+      opacity: 0.6;
+    }
+    .summary-item .value {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--text-primary);
+      margin-top: 2px;
+    }
+
+    /* ─── INVENTORY GRID ─── */
+    .dash-inventory-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .inventory-card {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 12px;
+      padding: 12px 14px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      text-align: center;
+      transition: 0.3s;
+    }
+    .inventory-card:hover {
+      background: rgba(255, 255, 255, 0.05);
+      transform: translateY(-2px);
+    }
+    .inventory-card .inv-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      font-weight: 600;
+      opacity: 0.6;
+    }
+    .inventory-card .inv-value {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--text-primary);
+      margin-top: 2px;
+    }
+
+    /* ─── QUICK ACTIONS ─── */
+    .dash-actions-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 12px;
+      justify-content: center;
+    }
+    .dash-actions-grid .btn-3d { padding: 10px 22px; font-size: 13px; min-height: 44px; flex: 0 1 auto; }
+
+    /* ─── ACTIVITY FEED ─── */
+    .activity-feed {
+      max-height: 200px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .activity-item {
+      display: flex;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      align-items: flex-start;
+    }
+    .activity-item:last-child { border-bottom: none; }
+    .activity-item .activity-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      flex-shrink: 0;
+      background: rgba(14, 165, 233, 0.1);
+      color: var(--neon-blue);
+    }
+    .activity-item .activity-content {
+      flex: 1;
+    }
+    .activity-item .activity-content .activity-text {
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+    .activity-item .activity-content .activity-time {
+      font-size: 11px;
+      color: var(--text-secondary);
+      opacity: 0.5;
+    }
+
+    /* ─── FLOATING ACTION BUTTON ─── */
+    .fab-container {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: flex-end;
+    }
+    .fab-btn {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: none;
+      background: linear-gradient(135deg, var(--neon-blue), var(--neon-purple));
+      color: #fff;
+      font-size: 22px;
+      cursor: pointer;
+      box-shadow: 0 8px 32px rgba(14, 165, 233, 0.4);
+      transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .fab-btn:hover {
+      transform: scale(1.08) translateY(-3px);
+      box-shadow: 0 12px 40px rgba(14, 165, 233, 0.6);
+    }
+    .fab-btn .fab-tooltip {
+      position: absolute;
+      right: 66px;
+      background: rgba(0,0,0,0.8);
+      backdrop-filter: blur(8px);
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: 0.3s;
+    }
+    .fab-btn:hover .fab-tooltip { opacity: 1; }
+
+    /* ─── LOADING SKELETON ─── */
+    .skeleton-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 16px;
+    }
+    .skeleton-grid .skeleton {
+      background: rgba(255, 255, 255, 0.04);
+      height: 100px;
+      border-radius: 16px;
+      animation: pulse 1.5s infinite;
+    }
+    .skeleton-chart {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 20px;
+    }
+    .skeleton-chart .skeleton {
+      background: rgba(255, 255, 255, 0.04);
+      height: 200px;
+      border-radius: 16px;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse { 0% { opacity: 0.3; } 50% { opacity: 0.6; } 100% { opacity: 0.3; } }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 1400px) {
+      .dash-kpi-grid { grid-template-columns: repeat(4, 1fr); }
+      .dash-summary-grid { grid-template-columns: repeat(4, 1fr); }
+      .dash-inventory-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 1200px) {
+      .dash-chart-grid { grid-template-columns: 1fr 1fr; }
+      .dash-kpi-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 992px) {
+      .dash-two-col { grid-template-columns: 1fr; }
+      .dash-chart-grid { grid-template-columns: 1fr; }
+      .dash-kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .dash-summary-grid { grid-template-columns: repeat(2, 1fr); }
+      .dash-inventory-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 768px) {
+      .dash-header { flex-direction: column; align-items: stretch; }
+      .dash-filter-bar { flex-direction: column; align-items: stretch; }
+      .filter-quick { flex-wrap: wrap; }
+      .dash-actions { justify-content: flex-start; }
+      .dash-kpi-grid { grid-template-columns: 1fr 1fr; }
+      .dash-summary-grid { grid-template-columns: 1fr 1fr; }
+      .dash-inventory-grid { grid-template-columns: 1fr 1fr; }
+      .dash-actions-grid .btn-3d { flex: 1; justify-content: center; }
+      .dash-title-group h1 { font-size: 20px; }
+      .search-box input { width: 100px; }
+      .fab-container { bottom: 16px; right: 16px; }
+      .fab-btn { width: 48px; height: 48px; font-size: 18px; }
+    }
+    @media (max-width: 480px) {
+      .dash-kpi-grid { grid-template-columns: 1fr; }
+      .dash-summary-grid { grid-template-columns: 1fr; }
+      .dash-inventory-grid { grid-template-columns: 1fr; }
+      .dash-title-group h1 { font-size: 18px; }
+      .dash-header { padding: 12px 16px; }
+      .dash-actions .btn-3d { padding: 6px 12px; font-size: 11px; min-height: 30px; }
+      .dash-actions .btn-3d .btn-label { display: none; }
+    }
+
+    /* ─── TOAST OVERRIDES ─── */
+    .toast-custom {
+      background: rgba(30, 41, 59, 0.95) !important;
+      backdrop-filter: blur(12px) !important;
+      border: 1px solid rgba(255, 255, 255, 0.06) !important;
+      border-radius: 12px !important;
+      color: #fff !important;
+      padding: 14px 20px !important;
+      font-size: 14px !important;
+      font-weight: 500 !important;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.4) !important;
+    }
+
+    .btn-3d-gold {
+      background: linear-gradient(135deg, #fbbf24, #f59e0b) !important;
+      box-shadow: 0 4px 0 #d97706, 0 8px 24px rgba(251, 191, 36, 0.3) !important;
+      color: #1e293b !important;
+    }
+    .btn-3d-gold:hover {
+      box-shadow: 0 6px 0 #d97706, 0 12px 32px rgba(251, 191, 36, 0.5) !important;
+      transform: translateY(-2px) !important;
+    }
+  </style>
+</head>
+<body>
+
+<div id="dashboardRoot" class="dashboard-container">
+
+  <!-- ===== HEADER ===== -->
+  <div class="dash-header">
+    <div class="dash-header-left">
+      <div class="logo-icon"><i class="fas fa-cube"></i></div>
+      <div class="dash-title-group">
+        <h1>Business Dashboard</h1>
+        <div class="subtitle">
+          <span class="live-dot"></span> Real‑time overview
+          <span style="opacity:0.3;margin:0 6px;">|</span>
+          <span id="dashDate"></span>
+        </div>
+      </div>
+    </div>
+    <div class="dash-actions">
+      <div class="search-box">
+        <input type="text" placeholder="Search..." id="globalSearch" onkeyup="if(event.key==='Enter'){showToast('Searching for: '+this.value,'info');}">
+        <button><i class="fas fa-search"></i></button>
+      </div>
+      <button class="btn-3d btn-3d-glass btn-3d-sm" onclick="refreshDashboard()" title="Refresh">
+        <i class="fas fa-sync-alt"></i> <span class="btn-label">Refresh</span>
+      </button>
+      <button class="btn-3d btn-3d-neon-cyan btn-3d-sm" onclick="exportDashboardData()" title="Export">
+        <i class="fas fa-file-export"></i> <span class="btn-label">Export</span>
+      </button>
+      <button class="btn-3d btn-3d-neon-gold btn-3d-sm" onclick="saveDashboardBackup()" title="Backup">
+        <i class="fas fa-camera"></i> <span class="btn-label">Backup</span>
+      </button>
+      <button class="btn-3d btn-3d-neon-pink btn-3d-sm" onclick="showNotification()" title="Notifications" style="position:relative;">
+        <i class="fas fa-bell"></i>
+        <span class="notif-badge" id="notifBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:#ef4444;color:#fff;font-size:9px;padding:1px 6px;border-radius:30px;">0</span>
+      </button>
+      <button class="btn-3d btn-3d-neon-purple btn-3d-sm" onclick="toggleTheme()" title="Toggle Theme">
+        <i class="fas fa-moon"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ===== DATE FILTER ===== -->
+  <div class="dash-filter-bar">
+    <div class="filter-group">
+      <label>From</label>
+      <input type="date" id="filterFrom" />
+    </div>
+    <div class="filter-group">
+      <label>To</label>
+      <input type="date" id="filterTo" />
+    </div>
+    <div class="filter-quick">
+      <button class="btn-3d btn-3d-glass btn-3d-sm" onclick="setQuickDate('today')">Today</button>
+      <button class="btn-3d btn-3d-glass btn-3d-sm" onclick="setQuickDate('week')">Week</button>
+      <button class="btn-3d btn-3d-glass btn-3d-sm" onclick="setQuickDate('month')">Month</button>
+      <button class="btn-3d btn-3d-glass btn-3d-sm" onclick="setQuickDate('lastmonth')">Last Month</button>
+      <button class="btn-3d btn-3d-glass btn-3d-sm" onclick="setQuickDate('year')">Year</button>
+    </div>
+    <div class="filter-actions">
+      <button class="btn-3d btn-3d-neon-blue btn-3d-sm" onclick="applyDateFilter()"><i class="fas fa-check"></i> Apply</button>
+      <button class="btn-3d btn-3d-glass btn-3d-sm" onclick="resetDateFilter()"><i class="fas fa-undo"></i> Reset</button>
+    </div>
+  </div>
+
+  <!-- ===== LOADING SKELETON ===== -->
+  <div id="dashSkeleton" style="display:block;">
+    <div class="skeleton-grid">
+      <div class="skeleton"></div><div class="skeleton"></div>
+      <div class="skeleton"></div><div class="skeleton"></div>
+      <div class="skeleton"></div>
+    </div>
+    <div class="skeleton-chart" style="margin-top:20px;">
+      <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+    </div>
+  </div>
+
+  <!-- ===== MAIN DASHBOARD CONTENT ===== -->
+  <div id="dashContent" style="display:none;">
+
+    <!-- KPI CARDS -->
+    <div class="dash-kpi-grid" id="kpiGrid"></div>
+
+    <!-- CHARTS ROW -->
+    <div class="dash-chart-grid">
+      <div class="chart-card">
+        <div class="chart-header"><i class="fas fa-chart-line"></i> Sales vs Purchases</div>
+        <canvas id="salesPurchaseChart" height="200"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header"><i class="fas fa-chart-bar"></i> Profit Analysis</div>
+        <canvas id="profitChart" height="200"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-header"><i class="fas fa-chart-pie"></i> Expense Breakdown</div>
+        <canvas id="expenseChart" height="200"></canvas>
+      </div>
+    </div>
+
+    <!-- TOP SELLING + LOW STOCK -->
+    <div class="dash-two-col">
+      <div class="dash-card">
+        <div class="dash-card-header">
+          <span><i class="fas fa-crown"></i> Top Selling Products</span>
+          <span class="badge-count" id="topCount">0</span>
+        </div>
+        <div class="dash-table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Product</th><th>Qty</th><th>Sales (৳)</th><th>Profit (৳)</th></tr></thead>
+            <tbody id="topProductsBody"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+          <button class="btn-3d btn-3d-glass btn-3d-sm" onclick="navigateTo('inventory')">View Inventory →</button>
+          <button class="btn-3d btn-3d-neon-blue btn-3d-sm" onclick="showToast('Generating product report...','info')"><i class="fas fa-file-pdf"></i> Report</button>
+        </div>
+      </div>
+
+      <div class="dash-card">
+        <div class="dash-card-header">
+          <span><i class="fas fa-exclamation-triangle"></i> Low Stock Alerts</span>
+          <span class="badge-count" id="lowStockCount">0</span>
+        </div>
+        <div class="dash-table-wrap">
+          <table>
+            <thead><tr><th>Product</th><th>Stock</th><th>Reorder</th><th>Status</th></tr></thead>
+            <tbody id="lowStockBody"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+          <button class="btn-3d btn-3d-glass btn-3d-sm" onclick="navigateTo('inventory')">View Inventory →</button>
+          <button class="btn-3d btn-3d-neon-red btn-3d-sm" onclick="showToast('Generating reorder report...','info')"><i class="fas fa-file-pdf"></i> Reorder</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RECEIVABLES + PAYABLES -->
+    <div class="dash-two-col">
+      <div class="dash-card">
+        <div class="dash-card-header">
+          <span><i class="fas fa-hand-holding-usd"></i> Customer Receivables</span>
+          <span class="badge-count" id="receivableCount">0</span>
+        </div>
+        <div class="dash-table-wrap">
+          <table>
+            <thead><tr><th>Customer</th><th>Invoice</th><th>Date</th><th>Due</th></tr></thead>
+            <tbody id="receivablesBody"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+          <button class="btn-3d btn-3d-glass btn-3d-sm" onclick="navigateTo('customers')">View Receivables →</button>
+          <button class="btn-3d btn-3d-neon-orange btn-3d-sm" onclick="showToast('Exporting receivables...','info')"><i class="fas fa-file-excel"></i> Export</button>
+        </div>
+      </div>
+
+      <div class="dash-card">
+        <div class="dash-card-header">
+          <span><i class="fas fa-credit-card"></i> Supplier Payables</span>
+          <span class="badge-count" id="payableCount">0</span>
+        </div>
+        <div class="dash-table-wrap">
+          <table>
+            <thead><tr><th>Supplier</th><th>PO</th><th>Date</th><th>Due</th></tr></thead>
+            <tbody id="payablesBody"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+          <button class="btn-3d btn-3d-glass btn-3d-sm" onclick="navigateTo('suppliers')">View Payables →</button>
+          <button class="btn-3d btn-3d-neon-red btn-3d-sm" onclick="showToast('Exporting payables...','info')"><i class="fas fa-file-excel"></i> Export</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RECENT TRANSACTIONS + ACTIVITY FEED -->
+    <div class="dash-two-col">
+      <div class="dash-card">
+        <div class="dash-card-header">
+          <span><i class="fas fa-clock"></i> Recent Transactions</span>
+          <span class="badge-count" id="txnCount">0</span>
+        </div>
+        <div class="dash-table-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Invoice</th><th>Type</th><th>Party</th><th>Amount</th><th>Status</th></tr></thead>
+            <tbody id="transactionsBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="dash-card">
+        <div class="dash-card-header">
+          <span><i class="fas fa-bolt"></i> Activity Feed</span>
+          <span class="badge-count" id="activityCount">0</span>
+        </div>
+        <div class="activity-feed" id="activityFeed">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- BUSINESS SUMMARY -->
+    <div class="dash-summary-grid">
+      <div class="summary-item"><span class="label">Today's Sales</span><span class="value" id="todaySales">৳0</span></div>
+      <div class="summary-item"><span class="label">Today's Purchases</span><span class="value" id="todayPurchases">৳0</span></div>
+      <div class="summary-item"><span class="label">Today's Expenses</span><span class="value" id="todayExpenses">৳0</span></div>
+      <div class="summary-item"><span class="label">Today's Profit</span><span class="value" id="todayProfit">৳0</span></div>
+      <div class="summary-item"><span class="label">This Month Sales</span><span class="value" id="monthSales">৳0</span></div>
+      <div class="summary-item"><span class="label">This Month Purchases</span><span class="value" id="monthPurchases">৳0</span></div>
+      <div class="summary-item"><span class="label">This Month Profit</span><span class="value" id="monthProfit">৳0</span></div>
+    </div>
+
+    <!-- INVENTORY SUMMARY -->
+    <div class="dash-inventory-grid">
+      <div class="inventory-card"><div class="inv-label">Total Products</div><div class="inv-value" id="invTotalProducts">0</div></div>
+      <div class="inventory-card"><div class="inv-label">Stock Units</div><div class="inv-value" id="invTotalUnits">0</div></div>
+      <div class="inventory-card"><div class="inv-label">Inventory Value</div><div class="inv-value" id="invValue">৳0</div></div>
+      <div class="inventory-card"><div class="inv-label">Low Stock</div><div class="inv-value" id="invLowStock">0</div></div>
+      <div class="inventory-card"><div class="inv-label">Out of Stock</div><div class="inv-value" id="invOutOfStock">0</div></div>
+    </div>
+
+    <!-- QUICK ACTIONS -->
+    <div class="dash-actions-grid">
+      <button class="btn-3d btn-3d-neon-blue" onclick="navigateTo('sales')"><i class="fas fa-cart-plus"></i> New Sale</button>
+      <button class="btn-3d btn-3d-neon-purple" onclick="navigateTo('purchases')"><i class="fas fa-shopping-cart"></i> New Purchase</button>
+      <button class="btn-3d btn-3d-neon-orange" onclick="navigateTo('expenses')"><i class="fas fa-receipt"></i> Add Expense</button>
+      <button class="btn-3d btn-3d-neon-green" onclick="navigateTo('customers')"><i class="fas fa-user-plus"></i> Add Customer</button>
+      <button class="btn-3d btn-3d-neon-cyan" onclick="navigateTo('suppliers')"><i class="fas fa-truck"></i> Add Supplier</button>
+      <button class="btn-3d btn-3d-neon-pink" onclick="navigateTo('inventory')"><i class="fas fa-boxes"></i> Add Product</button>
+      <button class="btn-3d btn-3d-neon-gold" onclick="showToast('Opening reports...','info')"><i class="fas fa-file-alt"></i> Reports</button>
+      <button class="btn-3d btn-3d-glass" onclick="showToast('Settings coming soon...','info')"><i class="fas fa-cog"></i> Settings</button>
+    </div>
+
+  </div><!-- /dashContent -->
+</div>
+
+<!-- ===== FLOATING ACTION BUTTONS ===== -->
+<div class="fab-container">
+  <button class="fab-btn" onclick="refreshDashboard()" title="Refresh">
+    <i class="fas fa-sync-alt"></i>
+    <span class="fab-tooltip">Refresh</span>
+  </button>
+  <button class="fab-btn" onclick="saveDashboardBackup()" title="Backup" style="background:linear-gradient(135deg,#fbbf24,#f59e0b);">
+    <i class="fas fa-camera"></i>
+    <span class="fab-tooltip">Backup</span>
+  </button>
+  <button class="fab-btn" onclick="showToast('Quick actions menu','info')" title="More" style="background:linear-gradient(135deg,#a855f7,#7c3aed);">
+    <i class="fas fa-plus"></i>
+    <span class="fab-tooltip">More Actions</span>
+  </button>
+</div>
+
+<!-- ============================================================
+     DASHBOARD JAVASCRIPT
+     ============================================================ -->
+<script>
+  (function() {
+    'use strict';
+
+    // ── Global state ──
+    let dashboardData = null;
+    let chartInstances = { salesPurchase: null, profit: null, expense: null };
+    let isLoading = false;
+    let isDark = true;
+
+    // ── DOM refs ──
+    const kpiGrid = document.getElementById('kpiGrid');
+    const skeleton = document.getElementById('dashSkeleton');
+    const content = document.getElementById('dashContent');
+
+    // ── Theme toggle ──
+    window.toggleTheme = function() {
+      isDark = !isDark;
+      document.documentElement.style.setProperty('--bg-dark', isDark ? '#0b1220' : '#f1f5f9');
+      document.documentElement.style.setProperty('--text-primary', isDark ? '#f1f5f9' : '#0f172a');
+      document.documentElement.style.setProperty('--text-secondary', isDark ? '#94a3b8' : '#475569');
+      document.documentElement.style.setProperty('--glass-bg', isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.5)');
+      showToast(isDark ? '🌙 Dark mode activated' : '☀️ Light mode activated', 'success');
+    };
+
+    // ── Load Dashboard ──
+    function loadDashboard(fromDate, toDate) {
+      if (isLoading) return;
+      isLoading = true;
+
+      skeleton.style.display = 'block';
+      content.style.display = 'none';
+
+      var params = {};
+      if (fromDate) params.fromDate = fromDate;
+      if (toDate) params.toDate = toDate;
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          isLoading = false;
+          if (response.status === 'success') {
+            dashboardData = response.data;
+            renderDashboard(dashboardData);
+          } else {
+            showToast('Failed to load dashboard: ' + response.message, 'error');
+            showErrorState(response.message);
+          }
+        })
+        .withFailureHandler(function(err) {
+          isLoading = false;
+          console.error('Dashboard error:', err);
+          showToast('Error loading dashboard. Please try again.', 'error');
+          showErrorState('Unable to connect to server. Please refresh and try again.');
+        })
+        .getDashboardData(params);
+    }
+
+    // ── Render ──
+    function renderDashboard(data) {
+      skeleton.style.display = 'none';
+      content.style.display = 'block';
+
+      renderKPIs(data.kpis);
+      renderCharts(data.charts);
+      renderTopProducts(data.topProducts);
+      renderLowStock(data.lowStock);
+      renderReceivables(data.receivables);
+      renderPayables(data.payables);
+      renderTransactions(data.recentTransactions);
+      renderSummary(data.summary);
+      renderInventory(data.inventory);
+      renderActivityFeed(data.recentTransactions);
+    }
+
+    // ── KPIs ──
+    function renderKPIs(kpis) {
+      var items = [
+        { id: 'totalSales', label: 'Total Sales', value: kpis.totalSales, icon: 'blue', change: kpis.salesChange, sparkline: [12,19,15,21,18,24,22] },
+        { id: 'totalPurchases', label: 'Total Purchases', value: kpis.totalPurchases, icon: 'purple', change: kpis.purchasesChange, sparkline: [8,11,9,13,10,15,12] },
+        { id: 'grossProfit', label: 'Gross Profit', value: kpis.grossProfit, icon: 'green', change: kpis.grossProfitChange, sparkline: [4,8,6,8,8,9,11] },
+        { id: 'netProfit', label: 'Net Profit', value: kpis.netProfit, icon: 'cyan', change: kpis.netProfitChange, sparkline: [3,5,4,6,5,7,8] },
+        { id: 'totalExpenses', label: 'Total Expenses', value: kpis.totalExpenses, icon: 'orange', change: kpis.expensesChange, sparkline: [5,4,6,5,7,6,8] },
+        { id: 'totalReceivable', label: 'Receivable', value: kpis.totalReceivable, icon: 'red', change: kpis.receivableChange, sparkline: [10,12,11,14,13,15,16] },
+        { id: 'totalPayable', label: 'Payable', value: kpis.totalPayable, icon: 'yellow', change: kpis.payableChange, sparkline: [8,9,7,10,9,11,10] },
+        { id: 'cashInHand', label: 'Cash in Hand', value: kpis.cashInHand, icon: 'green', change: kpis.cashChange, sparkline: [6,7,8,7,9,10,12] },
+        { id: 'inventoryValue', label: 'Inventory Value', value: kpis.inventoryValue, icon: 'yellow', change: kpis.inventoryChange, sparkline: [15,14,16,15,17,18,16] },
+        { id: 'lowStockItems', label: 'Low Stock Items', value: kpis.lowStockItems, icon: 'red', change: kpis.lowStockChange, sparkline: [3,4,3,5,4,6,5] }
+      ];
+
+      kpiGrid.innerHTML = items.map(function(item) {
+        var changeClass = item.change >= 0 ? '' : 'down';
+        var changeText = (item.change >= 0 ? '+' : '') + parseFloat(item.change || 0).toFixed(1) + '%';
+        var sparkId = 'spark_' + item.id;
+        return '<div class="kpi-card-dash" style="--accent-color:var(--neon-' + item.icon + ');">' +
+          '<div class="kpi-top">' +
+          '<div class="kpi-icon ' + item.icon + '"><i class="fas fa-' + getIconForKPI(item.id) + '"></i></div>' +
+          '<span class="kpi-change ' + changeClass + '"><i class="fas fa-' + (item.change >= 0 ? 'arrow-up' : 'arrow-down') + '"></i> ' + changeText + '</span>' +
+          '</div>' +
+          '<div class="kpi-label">' + item.label + '</div>' +
+          '<div class="kpi-value" id="val_' + item.id + '">' + formatMoney(item.value) + '</div>' +
+          '<div class="kpi-sub">' + (item.id === 'lowStockItems' ? 'Items below reorder level' : 'Current period') + '</div>' +
+          '<div class="sparkline-wrap"><canvas id="' + sparkId + '" height="32"></canvas></div>' +
+          '</div>';
+      }).join('');
+
+      // Render sparklines after DOM update
+      requestAnimationFrame(function() {
+        items.forEach(function(item) {
+          var canvas = document.getElementById('spark_' + item.id);
+          if (canvas) renderSparkline(canvas, item.sparkline || [0,0,0,0,0,0,0], item.icon);
+        });
+      });
+
+      // Animate counters
+      setTimeout(function() {
+        items.forEach(function(item) {
+          var el = document.getElementById('val_' + item.id);
+          if (el) animateCounter(el, 0, item.value, 800);
+        });
+      }, 200);
+    }
+
+    function renderSparkline(canvas, data, color) {
+      var ctx = canvas.getContext('2d');
+      var w = canvas.width || canvas.parentElement.clientWidth || 120;
+      var h = canvas.height || 32;
+      canvas.width = w;
+      canvas.height = h;
+
+      var max = Math.max.apply(null, data) || 1;
+      var min = Math.min.apply(null, data) || 0;
+      var range = max - min || 1;
+
+      ctx.clearRect(0, 0, w, h);
+
+      var colors = {
+        blue: '#0ea5e9',
+        purple: '#a855f7',
+        green: '#22c55e',
+        cyan: '#22d3ee',
+        orange: '#f59e0b',
+        red: '#ef4444',
+        yellow: '#fbbf24'
+      };
+      var lineColor = colors[color] || '#0ea5e9';
+
+      ctx.beginPath();
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth = 2;
+      ctx.shadowColor = lineColor;
+      ctx.shadowBlur = 8;
+
+      var step = w / (data.length - 1);
+      data.forEach(function(val, i) {
+        var x = i * step;
+        var y = h - ((val - min) / range) * (h - 6) - 3;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // Fill gradient
+      ctx.shadowBlur = 0;
+      var gradient = ctx.createLinearGradient(0, 0, 0, h);
+      gradient.addColorStop(0, lineColor + '40');
+      gradient.addColorStop(1, lineColor + '00');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.moveTo(0, h);
+      data.forEach(function(val, i) {
+        var x = i * step;
+        var y = h - ((val - min) / range) * (h - 6) - 3;
+        if (i === 0) ctx.lineTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.lineTo(w, h);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function animateCounter(el, start, end, duration) {
+      var startTime = performance.now();
+      var startVal = start;
+      var endVal = end;
+
+      function updateCounter(currentTime) {
+        var elapsed = currentTime - startTime;
+        var progress = Math.min(elapsed / duration, 1);
+        var eased = 1 - Math.pow(1 - progress, 3);
+        var current = startVal + (endVal - startVal) * eased;
+        el.textContent = formatMoney(current);
+        if (progress < 1) {
+          requestAnimationFrame(updateCounter);
+        } else {
+          el.textContent = formatMoney(endVal);
+        }
+      }
+      requestAnimationFrame(updateCounter);
+    }
+
+    function getIconForKPI(id) {
+      var map = {
+        'totalSales': 'money-bill-wave',
+        'totalPurchases': 'shopping-cart',
+        'grossProfit': 'chart-line',
+        'netProfit': 'chart-pie',
+        'totalExpenses': 'receipt',
+        'totalReceivable': 'hand-holding-usd',
+        'totalPayable': 'credit-card',
+        'cashInHand': 'wallet',
+        'inventoryValue': 'boxes',
+        'lowStockItems': 'exclamation-triangle'
+      };
+      return map[id] || 'circle';
+    }
+
+    // ── Charts ──
+    function renderCharts(charts) {
+      // Sales vs Purchase
+      var ctx1 = document.getElementById('salesPurchaseChart').getContext('2d');
+      if (chartInstances.salesPurchase) chartInstances.salesPurchase.destroy();
+      chartInstances.salesPurchase = new Chart(ctx1, {
+        type: 'line',
+        data: {
+          labels: charts.salesPurchase.labels || [],
+          datasets: [
+            { label: 'Sales', data: charts.salesPurchase.sales || [], borderColor: '#0ea5e9', backgroundColor: 'rgba(14,165,233,0.08)', fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#0ea5e9' },
+            { label: 'Purchases', data: charts.salesPurchase.purchases || [], borderColor: '#a855f7', backgroundColor: 'rgba(168,85,247,0.08)', fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#a855f7' }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 10, weight: '600' }, color: '#94a3b8' } } },
+          scales: { y: { beginAtZero: true, ticks: { font: { size: 9 }, color: '#94a3b8' } }, x: { ticks: { font: { size: 9 }, color: '#94a3b8' } } }
+        }
+      });
+
+      // Profit Analysis
+      var ctx2 = document.getElementById('profitChart').getContext('2d');
+      if (chartInstances.profit) chartInstances.profit.destroy();
+      chartInstances.profit = new Chart(ctx2, {
+        type: 'bar',
+        data: {
+          labels: charts.profit.labels || [],
+          datasets: [
+            { label: 'Sales', data: charts.profit.sales || [], backgroundColor: 'rgba(14,165,233,0.7)', borderRadius: 4 },
+            { label: 'COGS', data: charts.profit.cogs || [], backgroundColor: 'rgba(245,158,11,0.7)', borderRadius: 4 },
+            { label: 'Gross Profit', data: charts.profit.grossProfit || [], backgroundColor: 'rgba(34,197,94,0.7)', borderRadius: 4 },
+            { label: 'Expenses', data: charts.profit.expenses || [], backgroundColor: 'rgba(239,68,68,0.7)', borderRadius: 4 },
+            { label: 'Net Profit', data: charts.profit.netProfit || [], backgroundColor: 'rgba(168,85,247,0.7)', borderRadius: 4 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 9, weight: '600' }, color: '#94a3b8' } } },
+          scales: { y: { beginAtZero: true, ticks: { font: { size: 9 }, color: '#94a3b8' } }, x: { ticks: { font: { size: 9 }, color: '#94a3b8' } } }
+        }
+      });
+
+      // Expense Breakdown
+      var ctx3 = document.getElementById('expenseChart').getContext('2d');
+      if (chartInstances.expense) chartInstances.expense.destroy();
+      chartInstances.expense = new Chart(ctx3, {
+        type: 'doughnut',
+        data: {
+          labels: charts.expense.labels || [],
+          datasets: [{ data: charts.expense.values || [], backgroundColor: ['#0ea5e9','#f59e0b','#ef4444','#a855f7','#22d3ee','#ec4899','#fbbf24','#14b8a6'], borderWidth: 0 }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10, weight: '500' }, color: '#94a3b8', padding: 8 } } },
+          cutout: '68%'
+        }
+      });
+    }
+
+    // ── Top Products ──
+    function renderTopProducts(products) {
+      var tbody = document.getElementById('topProductsBody');
+      if (!products || products.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-secondary);opacity:0.5;">No sales data</td></tr>';
+        document.getElementById('topCount').textContent = '0';
+        return;
+      }
+      document.getElementById('topCount').textContent = products.length;
+      tbody.innerHTML = products.map(function(p, i) {
+        return '<tr><td>' + (i+1) + '</td><td>' + escapeHtml(p.product) + '</td><td>' + p.qty + '</td><td>' + formatMoney(p.sales) + '</td><td>' + formatMoney(p.profit) + '</td></tr>';
+      }).join('');
+    }
+
+    // ── Low Stock ──
+    function renderLowStock(items) {
+      var tbody = document.getElementById('lowStockBody');
+      if (!items || items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-secondary);opacity:0.5;">All items are well stocked</td></tr>';
+        document.getElementById('lowStockCount').textContent = '0';
+        return;
+      }
+      document.getElementById('lowStockCount').textContent = items.length;
+      tbody.innerHTML = items.map(function(item) {
+        var statusClass = item.stock === 0 ? 'critical' : (item.stock <= item.reorder ? 'low' : 'normal');
+        var statusLabel = item.stock === 0 ? 'Critical' : (item.stock <= item.reorder ? 'Low' : 'Normal');
+        return '<tr><td>' + escapeHtml(item.product) + '</td><td>' + item.stock + '</td><td>' + item.reorder + '</td><td><span class="status-badge ' + statusClass + '">' + statusLabel + '</span></td></tr>';
+      }).join('');
+    }
+
+    // ── Receivables ──
+    function renderReceivables(data) {
+      var tbody = document.getElementById('receivablesBody');
+      if (!data || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-secondary);opacity:0.5;">No outstanding receivables</td></tr>';
+        document.getElementById('receivableCount').textContent = '0';
+        return;
+      }
+      document.getElementById('receivableCount').textContent = data.length;
+      tbody.innerHTML = data.map(function(item) {
+        return '<tr><td>' + escapeHtml(item.customer) + '</td><td>' + escapeHtml(item.invoice) + '</td><td>' + (item.date || '-') + '</td><td>' + formatMoney(item.due) + '</td></tr>';
+      }).join('');
+    }
+
+    // ── Payables ──
+    function renderPayables(data) {
+      var tbody = document.getElementById('payablesBody');
+      if (!data || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-secondary);opacity:0.5;">No outstanding payables</td></tr>';
+        document.getElementById('payableCount').textContent = '0';
+        return;
+      }
+      document.getElementById('payableCount').textContent = data.length;
+      tbody.innerHTML = data.map(function(item) {
+        return '<tr><td>' + escapeHtml(item.supplier) + '</td><td>' + escapeHtml(item.po) + '</td><td>' + (item.date || '-') + '</td><td>' + formatMoney(item.due) + '</td></tr>';
+      }).join('');
+    }
+
+    // ── Recent Transactions ──
+    function renderTransactions(txns) {
+      var tbody = document.getElementById('transactionsBody');
+      if (!txns || txns.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-secondary);opacity:0.5;">No transactions found</td></tr>';
+        document.getElementById('txnCount').textContent = '0';
+        return;
+      }
+      document.getElementById('txnCount').textContent = txns.length;
+      tbody.innerHTML = txns.slice(0, 10).map(function(t) {
+        var typeClass = t.type.toLowerCase();
+        var statusClass = t.status === 'Paid' ? 'paid' : 'pending';
+        return '<tr><td>' + (t.date || '-') + '</td><td>' + escapeHtml(t.invoice) + '</td><td><span class="status-badge ' + typeClass + '">' + t.type + '</span></td><td>' + escapeHtml(t.party) + '</td><td>' + formatMoney(t.amount) + '</td><td><span class="status-badge ' + statusClass + '">' + t.status + '</span></td></tr>';
+      }).join('');
+    }
+
+    // ── Activity Feed ──
+    function renderActivityFeed(txns) {
+      var feed = document.getElementById('activityFeed');
+      if (!txns || txns.length === 0) {
+        feed.innerHTML = '<div style="text-align:center;color:var(--text-secondary);opacity:0.5;padding:20px;">No recent activity</div>';
+        document.getElementById('activityCount').textContent = '0';
+        return;
+      }
+      document.getElementById('activityCount').textContent = txns.length;
+      var icons = { 'Sale': 'fa-cart-plus', 'Purchase': 'fa-shopping-cart', 'Expense': 'fa-receipt', 'Payment': 'fa-money-bill-wave', 'Receipt': 'fa-hand-holding-usd' };
+      var colors = { 'Sale': '#0ea5e9', 'Purchase': '#a855f7', 'Expense': '#f59e0b', 'Payment': '#ef4444', 'Receipt': '#22c55e' };
+      feed.innerHTML = txns.slice(0, 8).map(function(t) {
+        var icon = icons[t.type] || 'fa-circle';
+        var color = colors[t.type] || '#94a3b8';
+        var timeAgo = t.date ? new Date(t.date).toLocaleDateString() : 'Today';
+        return '<div class="activity-item">' +
+          '<div class="activity-icon" style="background:' + color + '20;color:' + color + ';"><i class="fas ' + icon + '"></i></div>' +
+          '<div class="activity-content">' +
+          '<div class="activity-text"><strong>' + t.type + '</strong> — ' + escapeHtml(t.party) + ' <span style="color:var(--text-secondary);opacity:0.6;">' + formatMoney(t.amount) + '</span></div>' +
+          '<div class="activity-time">' + timeAgo + ' · ' + escapeHtml(t.invoice) + '</div>' +
+          '</div></div>';
+      }).join('');
+    }
+
+    // ── Summary ──
+    function renderSummary(summary) {
+      document.getElementById('todaySales').textContent = formatMoney(summary.todaySales);
+      document.getElementById('todayPurchases').textContent = formatMoney(summary.todayPurchases);
+      document.getElementById('todayExpenses').textContent = formatMoney(summary.todayExpenses);
+      document.getElementById('todayProfit').textContent = formatMoney(summary.todayProfit);
+      document.getElementById('monthSales').textContent = formatMoney(summary.monthSales);
+      document.getElementById('monthPurchases').textContent = formatMoney(summary.monthPurchases);
+      document.getElementById('monthProfit').textContent = formatMoney(summary.monthProfit);
+    }
+
+    // ── Inventory ──
+    function renderInventory(inv) {
+      document.getElementById('invTotalProducts').textContent = inv.totalProducts || 0;
+      document.getElementById('invTotalUnits').textContent = inv.totalUnits || 0;
+      document.getElementById('invValue').textContent = formatMoney(inv.value);
+      document.getElementById('invLowStock').textContent = inv.lowStock || 0;
+      document.getElementById('invOutOfStock').textContent = inv.outOfStock || 0;
+    }
+
+    // ── Error State ──
+    function showErrorState(message) {
+      skeleton.style.display = 'none';
+      content.style.display = 'block';
+      content.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--text-secondary);">' +
+        '<i class="fas fa-exclamation-circle" style="font-size:48px;color:#ef4444;display:block;margin-bottom:16px;"></i>' +
+        '<h3 style="color:var(--text-primary);">Unable to load dashboard</h3>' +
+        '<p>' + escapeHtml(message) + '</p>' +
+        '<button class="btn-3d btn-3d-neon-blue" onclick="refreshDashboard()" style="margin-top:16px;">' +
+        '<i class="fas fa-sync-alt"></i> Retry</button>' +
+        '</div>';
+    }
+
+    // ── Refresh ──
+    window.refreshDashboard = function() {
+      var from = document.getElementById('filterFrom').value || null;
+      var to = document.getElementById('filterTo').value || null;
+      loadDashboard(from, to);
+    };
+
+    // ── Date Filter ──
+    window.setQuickDate = function(preset) {
+      var today = new Date();
+      var from = document.getElementById('filterFrom');
+      var to = document.getElementById('filterTo');
+      var yyyy = today.getFullYear();
+      var mm = String(today.getMonth() + 1).padStart(2,'0');
+      var dd = String(today.getDate()).padStart(2,'0');
+
+      switch(preset) {
+        case 'today':
+          from.value = to.value = yyyy + '-' + mm + '-' + dd;
+          break;
+        case 'week':
+          var weekStart = new Date(today);
+          weekStart.setDate(today.getDate() - today.getDay());
+          from.value = weekStart.toISOString().split('T')[0];
+          to.value = today.toISOString().split('T')[0];
+          break;
+        case 'month':
+          from.value = yyyy + '-' + mm + '-01';
+          to.value = yyyy + '-' + mm + '-' + dd;
+          break;
+        case 'lastmonth':
+          var lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+          var lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+          from.value = lastMonth.toISOString().split('T')[0];
+          to.value = lastMonthEnd.toISOString().split('T')[0];
+          break;
+        case 'year':
+          from.value = yyyy + '-01-01';
+          to.value = yyyy + '-' + mm + '-' + dd;
+          break;
+      }
+      applyDateFilter();
+    };
+
+    window.applyDateFilter = function() {
+      var from = document.getElementById('filterFrom').value;
+      var to = document.getElementById('filterTo').value;
+      if (!from || !to) {
+        showToast('Please select both from and to dates.', 'warning');
+        return;
+      }
+      refreshDashboard();
+    };
+
+    window.resetDateFilter = function() {
+      document.getElementById('filterFrom').value = '';
+      document.getElementById('filterTo').value = '';
+      refreshDashboard();
+    };
+
+    // ── Save Dashboard Backup ──
+    window.saveDashboardBackup = function() {
+      showLoading(true);
+      google.script.run
+        .withSuccessHandler(function(response) {
+          showLoading(false);
+          if (response.status === 'success') {
+            showToast('📸 Backup snapshot saved!', 'success');
+          } else {
+            showToast('Backup failed: ' + response.message, 'error');
+          }
+        })
+        .withFailureHandler(function(err) {
+          showLoading(false);
+          showToast('Error saving backup: ' + err.message, 'error');
+        })
+        .runDashboardBackup();
+    };
+
+    // ── Export CSV ──
+    window.exportDashboardData = function() {
+      if (!dashboardData) {
+        showToast('No data to export', 'warning');
+        return;
+      }
+      var rows = [['Metric','Value']];
+      for (var key in dashboardData.kpis) {
+        rows.push([key, dashboardData.kpis[key]]);
+      }
+      var csv = rows.map(function(row) { return row.join(','); }).join('\n');
+      var blob = new Blob([csv], { type: 'text/csv' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'dashboard_export_' + new Date().toISOString().split('T')[0] + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('CSV exported', 'success');
+    };
+
+    // ── Notifications ──
+    window.showNotification = function() {
+      var badge = document.getElementById('notifBadge');
+      var count = parseInt(badge.textContent) || 0;
+      count = (count + 1) % 10;
+      if (count > 0) {
+        badge.style.display = 'inline';
+        badge.textContent = count;
+        showToast('You have ' + count + ' notification' + (count > 1 ? 's' : ''), 'info');
+      } else {
+        badge.style.display = 'none';
+        showToast('No new notifications', 'info');
+      }
+    };
+
+    // ── Helpers ──
+    function formatMoney(value) {
+      var num = Number(value) || 0;
+      return '৳' + num.toLocaleString('en-BD', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function escapeHtml(value) {
+      if (!value) return '';
+      return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // ── Show loading (global) ──
+    if (typeof showLoading !== 'function') {
+      window.showLoading = function(show) {
+        var overlay = document.getElementById('loadingOverlay');
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.id = 'loadingOverlay';
+          overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:99998;';
+          overlay.innerHTML = '<div style="background:#1e293b;padding:30px 40px;border-radius:16px;text-align:center;color:#fff;"><div class="spinner" style="width:40px;height:40px;border:4px solid rgba(255,255,255,0.1);border-top-color:#0ea5e9;border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto;"></div><div style="margin-top:12px;font-weight:600;">Loading...</div></div>';
+          document.body.appendChild(overlay);
+          var style = document.createElement('style');
+          style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
+          document.head.appendChild(style);
+        }
+        overlay.style.display = show ? 'flex' : 'none';
+      };
+    }
+
+    // ── Toast (overrides global) ──
+    if (typeof showToast !== 'function') {
+      window.showToast = function(msg, type) {
+        var container = document.getElementById('toastContainer');
+        if (!container) {
+          container = document.createElement('div');
+          container.id = 'toastContainer';
+          container.style.cssText = 'position:fixed;bottom:80px;right:30px;z-index:99999;display:flex;flex-direction:column;gap:8px;max-width:400px;width:100%;';
+          document.body.appendChild(container);
+        }
+        var toast = document.createElement('div');
+        toast.className = 'toast-custom ' + (type || 'info');
+        var iconMap = { success:'fa-check-circle', error:'fa-exclamation-circle', warning:'fa-triangle-exclamation', info:'fa-info-circle' };
+        toast.innerHTML = '<i class="fas ' + (iconMap[type] || 'fa-info-circle') + '" style="margin-right:8px;"></i> ' + msg;
+        container.appendChild(toast);
+        setTimeout(function() {
+          toast.style.opacity = '0';
+          toast.style.transform = 'translateY(20px)';
+          setTimeout(function() { if (toast.parentElement) toast.remove(); }, 400);
+        }, 4000);
+      };
+    }
+
+    // ── Init ──
+    document.getElementById('dashDate').innerHTML = new Date().toLocaleDateString('en-BD', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+
+    loadDashboard();
+
+    setInterval(function() {
+      if (document.getElementById('dashboardRoot')) {
+        refreshDashboard();
+      }
+    }, 300000);
+
+  })();
+</script>
+
+</body>
+</html>
